@@ -22,6 +22,11 @@ results/modelos/*
 *.pkl
 *.joblib
 
+# Banco de deteccoes e capturas
+results/*.db
+*.pcap
+*.pcapng
+
 # Editor / SO
 .vscode/
 .idea/

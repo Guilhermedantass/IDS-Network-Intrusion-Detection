@@ -1,15 +1,10 @@
 {
   "features": [
-    "Fwd Packet Length Std",
     "act_data_pkt_fwd",
-    "Fwd Packets/s",
-    "Fwd IAT Min",
-    "min_seg_size_forward",
-    "Packet Length Mean",
-    "Total Length of Fwd Packets",
-    "Bwd IAT Total"
+    "Fwd Packet Length Std",
+    "Fwd IAT Min"
   ],
-  "threshold": 0.55,
+  "threshold": 0.5,
   "classes": [
     "DDoS",
     "PortScan",
@@ -26,12 +21,12 @@
     "sample_weight": "balanced"
   },
   "metricas_cv": {
-    "f1_macro": 0.972677,
+    "f1_macro": 0.964775,
     "f1_por_classe": {
-      "DDoS": 0.999985,
-      "PortScan": 0.994798,
-      "SQLInjection": 0.9,
-      "WebAttack": 0.995923
+      "DDoS": 0.999917,
+      "PortScan": 0.982502,
+      "SQLInjection": 0.888889,
+      "WebAttack": 0.987793
     }
   }
 }
