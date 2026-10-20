@@ -31,14 +31,21 @@ IDS-Network-Intrusion-Detection/
 │   ├── raw/                        # CSVs originais do CIC-IDS-2017
 │   └── processed/                  # Dados tratados e preparados para treino
 ├── notebooks/                      # Jupyter Notebooks de análise
+│   ├── 02_selecao_features.ipynb   # Seleção de features dos dois modelos
+│   ├── 03_modelo_binario.ipynb     # Modelo 1: BENIGN x Ataque
+│   ├── 04_modelo_tipo_ataque.ipynb # Modelo 2: tipo de ataque
+│   ├── 05_pipeline_completo.ipynb  # Avaliação dos dois modelos juntos
 │   ├── notebook_portscan.ipynb     # Port Scan
 │   ├── notebook_ddos.ipynb         # DDoS
 │   ├── notebook_ddos_PCA.ipynb     # DDoS com redução de dimensionalidade (PCA)
 │   ├── notebook_web.ipynb          # Ataques Web (Brute Force, XSS, SQL Injection)
 │   └── archive/                    # Notebooks antigos, mantidos só como histórico
 ├── results/
-│   └── modelos/                    # Modelos treinados e artefatos (não versionados)
-├── src/                            # Código Python reutilizável
+│   └── modelos/                    # Modelos finais (.ubj) e metadados (.json)
+├── src/
+│   ├── data.py                     # Carregamento, limpeza e divisão treino/teste
+│   ├── features.py                 # Seleção de features (SHAP, correlação, curva top-k)
+│   └── pipeline.py                 # Detecção em duas etapas (IDSPipeline)
 ├── README.md
 └── requirements.txt
 ```
@@ -47,11 +54,15 @@ IDS-Network-Intrusion-Detection/
 
 Os CSVs do [CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html) devem ser colocados em `datas/raw/` com os nomes abaixo:
 
-| Notebook | Arquivo esperado em `datas/raw/` |
+| Arquivo esperado em `datas/raw/` | Arquivo original do CIC-IDS-2017 |
 | --- | --- |
-| `notebook_portscan.ipynb` | `Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv` |
-| `notebook_ddos.ipynb` / `notebook_ddos_PCA.ipynb` | `DDoS.csv` (renomeado de `Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv`) |
-| `notebook_web.ipynb` | `Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv` |
+| `PortScan.csv` | `Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv` |
+| `DDos.csv` | `Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv` |
+| `WebAttacks.csv` | `Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv` |
+
+Os notebooks 02 a 05 usam os três arquivos juntos; os notebooks `notebook_*.ipynb` usam um arquivo cada.
+
+Os nomes diferenciam maiúsculas de minúsculas no Linux (`DDos.csv` ≠ `DDoS.csv`).
 
 Os notebooks leem os dados a partir de `../datas`, então devem ser executados de dentro da pasta `notebooks/`.
 
@@ -78,9 +89,38 @@ Os notebooks leem os dados a partir de `../datas`, então devem ser executados d
    jupyter notebook
    ```
 
-## Pipeline dos Notebooks
+## Modelo de Detecção (2 etapas)
 
-Todos os notebooks seguem o mesmo fluxo:
+```
+fluxo -> Modelo 1 (BENIGN x Ataque) -> Modelo 2 (tipo) -> DDoS / PortScan / WebAttack / SQLInjection / Desconhecido
+```
+
+Os dois modelos são XGBoost treinados com os três CSVs juntos (`src/data.py`):
+
+- **Limpeza:** infinitos e NaN removidos, duplicatas removidas **antes** da divisão treino/teste (evita vazamento).
+- **Features removidas por decisão de domínio:** colunas constantes, colunas idênticas a outras e atalhos
+  que identificam o ambiente da captura em vez do ataque (`Destination Port`, `Init_Win_bytes_*`).
+- **Classes:** BruteForce e XSS viram `WebAttack`, porque as features de fluxo não distinguem os dois.
+- **Seleção de features** (notebook 02, só no treino): ranking por SHAP, remoção de features com correlação > 0,95
+  e curva de F1 x número de features.
+- **Modelo 1:** limiar de probabilidade escolhido para favorecer o recall de ataques (F2).
+- **Modelo 2:** treinado só com ataques, com pesos por classe para o desequilíbrio; confiança baixa vira `Desconhecido`.
+
+Uso:
+
+```python
+from src.data import clean_features
+from src.pipeline import IDSPipeline
+
+ids = IDSPipeline.load()
+resultado = ids.predict(clean_features(fluxos))   # attack_prob, is_attack, attack_type, type_confidence
+```
+
+Para retreinar, execute os notebooks 02, 03, 04 e 05 nessa ordem.
+
+## Notebooks por Ataque (primeira etapa)
+
+Os notebooks `notebook_*.ipynb` seguem o mesmo fluxo:
 
 1. Carregamento do CSV e exploração (shape, tipos).
 2. Limpeza: remoção de espaços nos nomes das colunas, infinitos → NaN, remoção de NaN e duplicatas.
@@ -93,7 +133,7 @@ No `notebook_ddos_PCA.ipynb` os dados são padronizados (`StandardScaler`) e red
 
 ## Boas Práticas
 
-- Não comite dados brutos no repositório (`datas/` e `results/modelos/` estão no `.gitignore`).
+- Não comite dados brutos no repositório (`datas/` está no `.gitignore`). De `results/modelos/` só os modelos finais (`.ubj`) e metadados (`.json`) são versionados.
 - Use `datas/processed/` apenas para dados preparados.
 - Documente cada experimento nos notebooks.
 - Código compartilhado entre notebooks (limpeza, avaliação) deve ir para `src/`.

@@ -14,9 +14,11 @@ datas/raw/*
 datas/processed/*
 !datas/**/.gitkeep
 
-# Modelos treinados
+# Modelos treinados: so os modelos finais do XGBoost (.ubj) e seus metadados (.json) sao versionados
 results/modelos/*
 !results/modelos/.gitkeep
+!results/modelos/*.ubj
+!results/modelos/*.json
 *.pkl
 *.joblib
 
