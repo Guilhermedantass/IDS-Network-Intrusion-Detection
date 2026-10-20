@@ -1,0 +1,14 @@
+{
+  "features": [
+    "Fwd Packet Length Std",
+    "act_data_pkt_fwd",
+    "Fwd Packets/s",
+    "Fwd IAT Min",
+    "min_seg_size_forward",
+    "Packet Length Mean",
+    "Total Length of Fwd Packets",
+    "Bwd IAT Total"
+  ],
+  "f1_cv": 0.968949,
+  "f1_cv_std": 0.021762
+}
