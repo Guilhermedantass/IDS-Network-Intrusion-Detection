@@ -1,0 +1,3 @@
+# Normaliza quebras de linha (evita conflitos CRLF x LF entre Windows e Linux)
+* text=auto eol=lf
+*.ipynb text eol=lf

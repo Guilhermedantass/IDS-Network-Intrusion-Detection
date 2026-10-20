@@ -1,0 +1,27 @@
+# Ambiente virtual
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dados (CIC-IDS-2017 e derivados sao grandes demais para o git)
+datas/raw/*
+datas/processed/*
+!datas/**/.gitkeep
+
+# Modelos treinados
+results/modelos/*
+!results/modelos/.gitkeep
+*.pkl
+*.joblib
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
