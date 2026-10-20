@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Atalho para o IDS: usa o Python do ambiente virtual do projeto.
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -x "$DIR/.venv/bin/python" ]; then
+    echo "Ambiente virtual nao encontrado. Crie com:"
+    echo "  python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+    exit 1
+fi
+cd "$DIR" && exec "$DIR/.venv/bin/python" -m src.ids "$@"

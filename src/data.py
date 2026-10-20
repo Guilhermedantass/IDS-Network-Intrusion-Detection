@@ -52,7 +52,18 @@ DUPLICATE_COLUMNS = {
 #   Linux do atacante Kali, 8192 = Windows do DDoS); identifica a maquina, nao o ataque.
 SHORTCUT_COLUMNS = ['Destination Port', 'Init_Win_bytes_forward', 'Init_Win_bytes_backward']
 
-DROP_COLUMNS = CONSTANT_COLUMNS + list(DUPLICATE_COLUMNS.values()) + SHORTCUT_COLUMNS
+# Colunas de flags TCP: o CICFlowMeter que gerou o dataset as calcula errado
+# (ex.: fluxos de port scan so tem 'PSH', nunca o RST das portas fechadas; ACK
+# aparece em so 14% das conexoes longas). Um extrator correto nunca reproduz
+# esses valores, entao elas ficam fora dos modelos.
+FLAG_COLUMNS = [
+    'FIN Flag Count', 'SYN Flag Count', 'RST Flag Count', 'PSH Flag Count',
+    'ACK Flag Count', 'URG Flag Count', 'CWE Flag Count', 'ECE Flag Count',
+    'Fwd PSH Flags', 'Bwd PSH Flags', 'Fwd URG Flags', 'Bwd URG Flags',
+]
+
+DROP_COLUMNS = list(dict.fromkeys(
+    CONSTANT_COLUMNS + list(DUPLICATE_COLUMNS.values()) + SHORTCUT_COLUMNS + FLAG_COLUMNS))
 
 
 def load_raw(files=RAW_FILES, raw_dir=RAW_DIR):

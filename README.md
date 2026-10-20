@@ -45,7 +45,16 @@ IDS-Network-Intrusion-Detection/
 ├── src/
 │   ├── data.py                     # Carregamento, limpeza e divisão treino/teste
 │   ├── features.py                 # Seleção de features (SHAP, correlação, curva top-k)
-│   └── pipeline.py                 # Detecção em duas etapas (IDSPipeline)
+│   ├── pipeline.py                 # Detecção em duas etapas (IDSPipeline)
+│   ├── flows.py                    # Pacotes -> fluxos com as features do CIC-IDS-2017
+│   ├── storage.py                  # Banco SQLite das detecções
+│   ├── detect.py                   # Classificação de lotes de fluxos e gravação no SQLite
+│   ├── live.py                     # Captura ao vivo com tcpdump
+│   ├── report.py                   # Resumo das execuções
+│   ├── ids.py                      # Linha de comando (./ids)
+│   └── slice_pcap.py               # Recorta uma janela de tempo de um PCAP
+├── tests/                          # Testes (pytest)
+├── ids                             # Atalho: ./ids <comando>
 ├── README.md
 └── requirements.txt
 ```
@@ -100,6 +109,8 @@ Os dois modelos são XGBoost treinados com os três CSVs juntos (`src/data.py`):
 - **Limpeza:** infinitos e NaN removidos, duplicatas removidas **antes** da divisão treino/teste (evita vazamento).
 - **Features removidas por decisão de domínio:** colunas constantes, colunas idênticas a outras e atalhos
   que identificam o ambiente da captura em vez do ataque (`Destination Port`, `Init_Win_bytes_*`).
+- **Flags TCP removidas:** o CICFlowMeter que gerou o dataset calcula as colunas de flags errado (ex.: os fluxos
+  de port scan só têm `PSH`, nunca o `RST` das portas fechadas), e um extrator correto não reproduz esses valores.
 - **Classes:** BruteForce e XSS viram `WebAttack`, porque as features de fluxo não distinguem os dois.
 - **Seleção de features** (notebook 02, só no treino): ranking por SHAP, remoção de features com correlação > 0,95
   e curva de F1 x número de features.
@@ -117,6 +128,59 @@ resultado = ids.predict(clean_features(fluxos))   # attack_prob, is_attack, atta
 ```
 
 Para retreinar, execute os notebooks 02, 03, 04 e 05 nessa ordem.
+
+## Usando o IDS
+
+Tudo passa pelo comando `./ids` (usa o Python do `.venv` automaticamente):
+
+```bash
+./ids ao-vivo                 # monitora a placa de rede e mostra alertas em tempo real (Ctrl+C para parar)
+./ids ao-vivo -i lo --duracao 60
+./ids teste-nmap              # escaneia o próprio PC (127.0.0.1) e mostra se o IDS detectou
+./ids teste-nmap --syn        # inclui o scan SYN (sudo nmap -sS)
+./ids arquivo captura.pcap    # analisa um arquivo de captura
+./ids resumo                  # resultado da última execução
+./ids resumo --lista          # todas as execuções
+```
+
+`ao-vivo` e `teste-nmap` capturam com `tcpdump`, por isso pedem a senha do `sudo`. Os resultados ficam em
+`results/ids.db` (use `--db` para outro arquivo).
+
+```
+tcpdump / PCAP -> src/flows.py (features de fluxo) -> IDSPipeline -> SQLite -> alertas e resumo
+```
+
+No modo ao vivo, um fluxo também é encerrado após 10 s sem pacotes (o CICFlowMeter original só encerra no
+FIN ou após 120 s); sem isso, um port scan só geraria alerta 2 minutos depois.
+
+O extrator de fluxos (`src/flows.py`) reproduz a semântica do CICFlowMeter em Java que gerou o CIC-IDS-2017,
+incluindo os bugs dele, conferidos contra os CSVs:
+
+- tempos em microssegundos, tamanho = payload, desvio padrão amostral, fim do fluxo no primeiro FIN ou após 120 s;
+- o padding do Ethernet (quadros com menos de 60 bytes) conta como payload;
+- o primeiro pacote entra duas vezes em `Packet Length Mean/Std/Variance` e `Average Packet Size`;
+- `act_data_pkt_fwd` ignora o primeiro pacote e o padding.
+
+O pacote `cicflowmeter` do PyPI não é usado porque calcula várias features em outra escala.
+
+O banco tem duas tabelas: `runs` (uma por execução) e `flows` (um fluxo por linha, com a previsão; as
+features ficam salvas em JSON só para os fluxos classificados como ataque).
+
+### PCAPs do CIC-IDS-2017
+
+Os PCAPs originais (página do dataset, pasta `PCAPs/`, exige cadastro) têm vários GB por dia. Para recortar só a
+janela do ataque, inclusive durante o download:
+
+```bash
+curl -L <url-do-pcap> | python -m src.slice_pcap - datas/raw/recorte.pcap \
+    --inicio 2017-07-07T13:50-03:00 --fim 2017-07-07T14:40-03:00
+```
+
+## Testes
+
+```bash
+pytest
+```
 
 ## Notebooks por Ataque (primeira etapa)
 
