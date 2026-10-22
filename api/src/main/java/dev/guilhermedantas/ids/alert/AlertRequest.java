@@ -1,5 +1,10 @@
 package dev.guilhermedantas.ids.alert;
 
+import java.time.Instant;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 /**
  * Um alerta do lote. Exemplo:
  * <pre>
@@ -8,11 +13,21 @@ package dev.guilhermedantas.ids.alert;
  *  "flows": null, "packets": 1800, "rate": 180.0, "ports": 1, "sources": null, "probability": null}
  * </pre>
  *
- * TODO: um componente para cada campo do JSON (mesmo nome, o Jackson casa pelo nome).
- *   - ts: java.time.Instant (o Jackson converte o texto ISO "...Z" sozinho)
- *   - campos que podem vir null (srcIp, dstPort, flows, packets, rate, ports, sources, probability):
- *     use tipos "caixa" (Integer, Double), porque int/double nao aceitam null
- *   - obrigatorios: ts (@NotNull), type, detectedBy, dstIp, protocol (@NotBlank)
+ * Os nomes dos componentes sao os mesmos do JSON: o Jackson casa pelo nome.
+ * Campos que podem vir null usam tipos "caixa" (Integer, Double), porque int/double nao aceitam null.
  */
-public record AlertRequest() {
+public record AlertRequest(
+        @NotNull Instant ts,
+        @NotBlank String type,
+        @NotBlank String detectedBy,
+        String srcIp,
+        @NotBlank String dstIp,
+        Integer dstPort,
+        @NotBlank String protocol,
+        Integer flows,
+        Integer packets,
+        Double rate,
+        Integer ports,
+        Integer sources,
+        Double probability) {
 }
