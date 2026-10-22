@@ -1,0 +1,57 @@
+<header>
+  <h1>Incidentes</h1>
+  <p class="summary" [class.under-attack]="activeCount() > 0">
+    @switch (activeCount()) {
+      @case (0) { Nenhum ataque acontecendo agora. }
+      @case (1) { 1 ataque acontecendo agora. }
+      @default { {{ activeCount() }} ataques acontecendo agora. }
+    }
+  </p>
+</header>
+
+@if (store.incidents().length === 0) {
+  <div class="empty">
+    <p>Nenhum incidente registrado ainda.</p>
+    <p>Para gerar um, rode na raiz do projeto: <code>./ids teste-flood --api http://localhost:8080</code></p>
+  </div>
+} @else {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Ataque</th>
+          <th>Destino</th>
+          <th>Sensor</th>
+          <th>Início</th>
+          <th>Último alerta</th>
+          <th class="num">Alertas</th>
+          <th class="num">Pico</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (incident of store.incidents(); track incident.id) {
+          @let active = isActive(incident, now());
+          <tr [class.active]="active">
+            <td>
+              <span class="state">{{ active ? 'Ativo' : 'Encerrado' }}</span>
+            </td>
+            <td class="type">{{ incident.type }}</td>
+            <td class="ip">{{ incident.dstIp }}</td>
+            <td class="muted">{{ incident.sensor }}</td>
+            <td>{{ incident.startedAt | date: 'dd/MM HH:mm:ss' }}</td>
+            <td>{{ incident.lastSeenAt | date: 'dd/MM HH:mm:ss' }}</td>
+            <td class="num">{{ incident.alertCount }}</td>
+            <td class="num">
+              @if (incident.peakRate !== null) {
+                {{ incident.peakRate | number: '1.0-1' }} <span class="unit">pkt/s</span>
+              } @else {
+                <span class="muted">–</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

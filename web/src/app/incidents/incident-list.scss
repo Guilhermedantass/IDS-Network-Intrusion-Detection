@@ -1,0 +1,121 @@
+header {
+  margin-bottom: 28px;
+}
+
+.summary {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.summary.under-attack {
+  color: var(--signal);
+  font-weight: 500;
+}
+
+.empty {
+  padding: 28px 0;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.empty p {
+  margin: 0 0 6px;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--ink);
+}
+
+// as celulas tem recuo (o fundo da linha ativa precisa de folga), entao a tabela e puxada para
+// fora na mesma medida: o texto da primeira coluna fica alinhado com o titulo
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 -12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th {
+  padding: 0 12px 10px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+}
+
+.type {
+  font-weight: 500;
+}
+
+.ip {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.muted,
+.unit {
+  color: var(--muted);
+}
+
+.unit {
+  font-size: 0.85em;
+}
+
+// status: encerrado fica quieto; ativo e a unica coisa em vermelho na tela
+.state {
+  color: var(--muted);
+}
+
+.state::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  vertical-align: 1px;
+}
+
+tr.active {
+  background: var(--signal-soft);
+}
+
+tr.active .state {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+tr.active .state::before {
+  background: var(--signal);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 20%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr.active .state::before {
+    animation: none;
+  }
+}
