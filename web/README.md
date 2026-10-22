@@ -23,11 +23,14 @@ src/app/
 ├── config.ts                    # endereços da API e o GAP de 60 s (mesmo valor da API)
 ├── clock.ts                     # relógio de 1 s compartilhado (status ativo/encerrado)
 ├── app.ts / app.html / app.scss # casca: barra lateral + <router-outlet>; liga o WebSocket ao abrir
-├── app.routes.ts                # /overview (inicial), /incidents (lista) e /incidents/:id (detalhe)
+├── app.routes.ts                # /overview (inicial), /incidents, /incidents/:id e /sensors
 ├── shell/sidebar.*              # barra lateral: navegação e status da conexão com a API
 ├── overview/                    # visão geral (página inicial): manchete, números, gráficos e rankings das últimas 24 h
 │   ├── stats.ts                 # o formato do resumo (espelha o StatsResponse do Java)
 │   └── overview.*
+├── sensors/                     # iniciar/parar a captura de cada sensor (busca a lista a cada 3 s)
+│   ├── sensor.ts                # o formato (espelha o SensorView do Java)
+│   └── sensors.*
 └── incidents/
     ├── incident.ts              # o formato do incidente (espelha o IncidentMessage do Java)
     ├── incident-alert.ts        # o formato de um alerta (espelha o AlertResponse do Java)
@@ -51,7 +54,14 @@ Números e datas no formato brasileiro (`LOCALE_ID` pt-BR no `app.config.ts`).
 
 ## Testando ao vivo
 
-Com a API e o `npm start` de pé, gere um ataque ao próprio PC (na raiz do projeto):
+Para controlar a captura pelo dashboard (página Sensores), ligue o serviço do sensor na raiz do projeto; ele pede a
+senha do sudo uma vez:
+
+```bash
+./ids servico --api http://localhost:8080
+```
+
+Ou gere um ataque direto, sem o serviço (na raiz do projeto):
 
 ```bash
 ./ids teste-flood --segundos 3600 --taxa 300 --api http://localhost:8080   # Ctrl+C para parar

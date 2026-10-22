@@ -5,6 +5,7 @@
     ./ids teste-flood [--udp]                    faz um flood no proprio PC e mostra se o IDS detectou
     ./ids arquivo CAPTURA.pcap                   analisa um arquivo de captura
     ./ids resumo [RUN] [--lista]                 resultado da ultima execucao (ou da RUN)
+    ./ids servico --api URL                      fica ligado; a captura e controlada pelo dashboard
 
 Com --api URL (ou a variavel IDS_API_URL), os alertas tambem vao para a API (POST URL/api/alerts).
 """
@@ -16,7 +17,7 @@ import subprocess
 import threading
 import time
 
-from . import report, storage
+from . import report, service, storage
 from .alerts import AlertSender
 from .detect import Detector, run as run_file
 from .live import LiveCapture, ask_sudo, default_interface, tcpdump_command
@@ -137,6 +138,12 @@ def cmd_arquivo(args):
     report.summary(run_id, args.db)
 
 
+def cmd_servico(args):
+    if not args.api:
+        raise SystemExit('O servico precisa da API: use --api http://localhost:8080 (ou a variavel IDS_API_URL).')
+    service.run(args.api, args.sensor, args.db)
+
+
 def cmd_resumo(args):
     if args.lista:
         report.list_runs(args.db)
@@ -178,6 +185,10 @@ def main():
     p.add_argument('run', nargs='?', type=int, help='numero da execucao (padrao: a ultima)')
     p.add_argument('--lista', action='store_true', help='lista as execucoes')
     p.set_defaults(func=cmd_resumo)
+
+    p = sub.add_parser('servico', parents=[comum],
+                       help='fica ligado e inicia/para a captura quando o dashboard mandar (precisa de --api)')
+    p.set_defaults(func=cmd_servico)
 
     args = parser.parse_args()
     args.func(args)

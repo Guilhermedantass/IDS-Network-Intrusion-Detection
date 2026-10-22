@@ -1,0 +1,64 @@
+<header>
+  <h1>Sensores</h1>
+  <p class="muted">Inicie e pare a captura de cada sensor. O pedido chega ao sensor em até 5 segundos.</p>
+</header>
+
+@if (failed() && !sensors()) {
+  <p class="muted">Não foi possível carregar os sensores. Confira se a API está de pé em localhost:8080.</p>
+} @else if (sensors(); as sensors) {
+  @if (sensors.length === 0) {
+    <div class="empty">
+      <p>Nenhum sensor conectado.</p>
+      <p>Para ligar o deste PC, rode na raiz do projeto (pede a senha do sudo uma vez):</p>
+      <pre><code>./ids servico --api http://localhost:8080</code></pre>
+    </div>
+  } @else {
+    <ul class="sensors">
+      @for (s of sensors; track s.name) {
+        @let st = state(s);
+        <li [class.offline]="!s.online">
+          <div class="head">
+            <h2>{{ s.name }}</h2>
+            <p class="state" [class]="st.kind">{{ st.text }}</p>
+          </div>
+
+          @if (!s.online) {
+            <p class="muted">Último sinal em {{ s.lastSeen | date: 'dd/MM HH:mm:ss' }}. Ligue o serviço do sensor para controlar a captura.</p>
+          } @else {
+            @if (s.reported.error) {
+              <p class="error"><strong>A captura parou com erro.</strong> {{ s.reported.error }}</p>
+            }
+
+            <dl class="counters">
+              <div><dt>Fluxos analisados</dt><dd>{{ s.reported.flows | number }}</dd></div>
+              <div><dt>Fluxos de ataque</dt><dd>{{ s.reported.attacks | number }}</dd></div>
+              <div><dt>Alertas enviados</dt><dd>{{ s.reported.alertsSent | number }}</dd></div>
+            </dl>
+
+            <div class="controls">
+              <label>
+                <span>Interface</span>
+                <!-- [selected] em cada opcao, e nao [value] no select: o [value] chegaria antes de o @for criar as opcoes -->
+                <select (change)="choose(s, $any($event.target).value)" [disabled]="s.desired.capture">
+                  <option value="" [selected]="interfaceOf(s) === ''">Padrão do sensor</option>
+                  @for (i of s.reported.interfaces; track i) {
+                    <option [value]="i" [selected]="interfaceOf(s) === i">{{ i }}</option>
+                  }
+                </select>
+              </label>
+              <button type="button" [class.stop]="s.desired.capture" [disabled]="sending() === s.name"
+                      (click)="toggle(s)">
+                {{ s.desired.capture ? 'Parar captura' : 'Iniciar captura' }}
+              </button>
+            </div>
+            @if (interfaceOf(s) !== 'lo' && !s.desired.capture) {
+              <p class="hint muted">Para ver ataques ao próprio PC (127.0.0.1), use a interface <code>lo</code>.</p>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+} @else {
+  <p class="muted">Carregando…</p>
+}
