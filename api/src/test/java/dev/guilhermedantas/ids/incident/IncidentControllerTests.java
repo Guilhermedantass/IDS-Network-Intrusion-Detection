@@ -75,6 +75,49 @@ class IncidentControllerTests {
     }
 
     @Test
+    void buscaUmIncidentePeloId() throws Exception {
+        long id = incidents.findAll().stream().filter(i -> i.getDstIp().equals("10.0.0.3")).findFirst().orElseThrow().getId();
+
+        mvc.perform(get("/api/incidents/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.dstIp").value("10.0.0.3"));
+    }
+
+    @Test
+    void incidenteQueNaoExisteDa404() throws Exception {
+        mvc.perform(get("/api/incidents/{id}", 999_999)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void alertasDoIncidenteEmOrdemDeTempo() throws Exception {
+        // mais dois alertas no incidente do 10.0.0.1 (o primeiro foi as 13:00:00), fora de ordem
+        String body = """
+                {"sensor": "teste", "alerts": [%s, %s]}
+                """.formatted(alerta("13:00:40Z", "10.0.0.1"), alerta("13:00:20Z", "10.0.0.1"));
+        mvc.perform(post("/api/alerts").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+        long id = incidents.findAll().stream().filter(i -> i.getDstIp().equals("10.0.0.1")).findFirst().orElseThrow().getId();
+
+        mvc.perform(get("/api/alerts").param("incident", String.valueOf(id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].ts").value("2026-10-22T13:00:00Z"))
+                .andExpect(jsonPath("$[1].ts").value("2026-10-22T13:00:20Z"))
+                .andExpect(jsonPath("$[2].ts").value("2026-10-22T13:00:40Z"))
+                .andExpect(jsonPath("$[0].detectedBy").value("volume"))
+                .andExpect(jsonPath("$[0].rate").value(100.0))
+                .andExpect(jsonPath("$[0].receivedAt").isNotEmpty());
+    }
+
+    @Test
+    void alertasDeIncidenteQueNaoExisteEListaVazia() throws Exception {
+        mvc.perform(get("/api/alerts").param("incident", "999999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
     void limitForaDaFaixaERecusado() throws Exception {
         mvc.perform(get("/api/incidents").param("limit", "0")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/incidents").param("limit", "501")).andExpect(status().isBadRequest());

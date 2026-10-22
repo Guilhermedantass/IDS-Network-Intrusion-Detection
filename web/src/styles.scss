@@ -41,3 +41,90 @@ h1 {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ---- Tabelas de dados (incidentes, alertas) ---- */
+
+// as celulas tem recuo (o fundo da linha ativa precisa de folga), entao a tabela e puxada para
+// fora na mesma medida: o texto da primeira coluna fica alinhado com o titulo
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 -12px;
+}
+
+.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+
+  th {
+    padding: 0 12px 10px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+
+  td {
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .num {
+    text-align: right;
+  }
+}
+
+.ip {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.muted,
+.unit {
+  color: var(--muted);
+}
+
+.unit {
+  font-size: 0.85em;
+}
+
+/* ---- Status do incidente: encerrado fica quieto; ativo e a unica coisa em vermelho ---- */
+
+.state {
+  color: var(--muted);
+}
+
+.state::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  vertical-align: 1px;
+}
+
+.state.on {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.state.on::before {
+  background: var(--signal);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 20%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state.on::before {
+    animation: none;
+  }
+}

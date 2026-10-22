@@ -27,6 +27,8 @@ Para o sensor mandar os alertas: `./ids teste-flood --api http://localhost:8080`
 |---|---|---|
 | `POST /api/alerts` | sensor | recebe um lote `{sensor, alerts: [...]}` (formato em `sensor/src/alerts.py`). 201 `{"saved": n}`; 400 se o JSON ou um campo obrigatório estiver errado |
 | `GET /api/incidents?limit=50` | dashboard | os incidentes mais recentes primeiro (`limit` de 1 a 500) |
+| `GET /api/incidents/{id}` | dashboard | um incidente (404 se não existe) |
+| `GET /api/alerts?incident={id}` | dashboard | os alertas de um incidente, em ordem de tempo (`AlertResponse`) |
 | `ws://localhost:8080/ws` (STOMP) | dashboard | tópico `/topic/incidents`: um incidente cada vez que abre ou muda |
 | `GET /actuator/health` | monitoramento | `{"status": "UP"}` |
 
@@ -55,17 +57,18 @@ src/main/java/dev/guilhermedantas/ids/
 ├── alert/                          # um pacote por funcionalidade
 │   ├── AlertBatchRequest.java      # DTO: o JSON que chega {sensor, alerts}
 │   ├── AlertRequest.java           # DTO: um alerta (com as validações)
+│   ├── AlertResponse.java          # um alerta como o dashboard recebe
 │   ├── Alert.java                  # entidade JPA (tabela alerts), aponta para o incidente
 │   ├── AlertRepository.java        # acesso ao banco (Spring Data JPA)
 │   ├── AlertService.java           # salva o lote e coloca cada alerta num incidente, numa transação
-│   └── AlertController.java        # POST /api/alerts
+│   └── AlertController.java        # POST /api/alerts e GET /api/alerts?incident=
 ├── incident/
 │   ├── Incident.java               # entidade JPA (tabela incidents)
 │   ├── IncidentRepository.java
 │   ├── IncidentService.java        # regra de agrupamento + lista dos recentes
 │   ├── IncidentMessage.java        # o formato que o dashboard recebe (GET e WebSocket)
 │   ├── IncidentNotifier.java       # manda para /topic/incidents depois do commit
-│   └── IncidentController.java     # GET /api/incidents
+│   └── IncidentController.java     # GET /api/incidents e /api/incidents/{id}
 └── config/
     ├── WebSocketConfig.java        # STOMP em /ws, broker simples em /topic
     └── WebConfig.java              # CORS para o dashboard

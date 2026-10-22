@@ -74,4 +74,10 @@ public class Alert {
         a.probability = req.probability();
         return a;
     }
+
+    /** O caminho de volta: entidade -> formato da API (GET /api/alerts?incident=). */
+    AlertResponse toResponse() {
+        return new AlertResponse(id, ts, receivedAt, type, detectedBy, srcIp, dstIp, dstPort, protocol,
+                flows, packets, rate, ports, sources, probability);
+    }
 }
