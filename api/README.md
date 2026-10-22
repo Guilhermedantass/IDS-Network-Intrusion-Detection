@@ -29,6 +29,7 @@ Para o sensor mandar os alertas: `./ids teste-flood --api http://localhost:8080`
 | `GET /api/incidents?limit=50` | dashboard | os incidentes mais recentes primeiro (`limit` de 1 a 500) |
 | `GET /api/incidents/{id}` | dashboard | um incidente (404 se não existe) |
 | `GET /api/alerts?incident={id}` | dashboard | os alertas de um incidente, em ordem de tempo (`AlertResponse`) |
+| `GET /api/stats?hours=24` | dashboard | resumo da visão geral: totais, maior taxa, incidente mais longo, por tipo, por hora (com os tipos), top 5 origens e alvos (`hours` de 1 a 168) |
 | `ws://localhost:8080/ws` (STOMP) | dashboard | tópico `/topic/incidents`: um incidente cada vez que abre ou muda |
 | `GET /actuator/health` | monitoramento | `{"status": "UP"}` |
 
@@ -69,6 +70,10 @@ src/main/java/dev/guilhermedantas/ids/
 │   ├── IncidentMessage.java        # o formato que o dashboard recebe (GET e WebSocket)
 │   ├── IncidentNotifier.java       # manda para /topic/incidents depois do commit
 │   └── IncidentController.java     # GET /api/incidents e /api/incidents/{id}
+├── stats/
+│   ├── StatsResponse.java          # o resumo (totais, por tipo, por hora)
+│   ├── StatsService.java           # as contas, agrupando em Java
+│   └── StatsController.java        # GET /api/stats
 └── config/
     ├── WebSocketConfig.java        # STOMP em /ws, broker simples em /topic
     └── WebConfig.java              # CORS para o dashboard
