@@ -1,5 +1,6 @@
 package dev.guilhermedantas.ids.incident;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,4 +14,7 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
     /** Os incidentes mais recentes primeiro; o Limit vira o LIMIT do SQL. */
     List<Incident> findAllByOrderByLastSeenAtDesc(Limit limit);
+
+    /** Os incidentes que comecaram a partir de um instante (estatisticas da visao geral). */
+    List<Incident> findByStartedAtGreaterThanEqual(Instant since);
 }
