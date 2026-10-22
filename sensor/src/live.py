@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import datetime
 
+from .alerts import model_alerts
 from .flows import FlowMeter, read_stream
 
 IDLE_TIMEOUT = 10   # s sem pacotes para encerrar um fluxo
@@ -42,15 +43,10 @@ def print_alerts(rows):
 
     Fluxos de ataques de volume ficam de fora: o alerta deles ja saiu em print_volume_alerts.
     """
-    attacks = rows[rows['detected_by'] == 'modelo']
-    if attacks.empty:
-        return
     hora = datetime.now().strftime('%H:%M:%S')
-    grupos = attacks.groupby(['attack_type', 'Src IP', 'Dst IP']).agg(
-        fluxos=('attack_prob', 'size'), portas=('Dst Port', 'nunique'), prob=('attack_prob', 'mean'))
-    for (tipo, src, dst), g in grupos.iterrows():
-        print(f'\r[{hora}] ALERTA {tipo:<12} {src} -> {dst}  [modelo] '
-              f'{int(g["fluxos"])} fluxo(s), {int(g["portas"])} porta(s), prob {g["prob"]:.2f}' + ' ' * 10)
+    for a in model_alerts(rows):
+        print(f'\r[{hora}] ALERTA {a["type"]:<12} {a["srcIp"]} -> {a["dstIp"]}  [modelo] '
+              f'{a["flows"]} fluxo(s), {a["ports"]} porta(s), prob {a["probability"]:.2f}' + ' ' * 10)
 
 
 def print_volume_alerts(alerts):

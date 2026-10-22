@@ -5,8 +5,11 @@
     ./ids teste-flood [--udp]                    faz um flood no proprio PC e mostra se o IDS detectou
     ./ids arquivo CAPTURA.pcap                   analisa um arquivo de captura
     ./ids resumo [RUN] [--lista]                 resultado da ultima execucao (ou da RUN)
+
+Com --api URL (ou a variavel IDS_API_URL), os alertas tambem vao para a API (POST URL/api/alerts).
 """
 import argparse
+import os
 import shutil
 import socket
 import subprocess
@@ -14,14 +17,30 @@ import threading
 import time
 
 from . import report, storage
+from .alerts import AlertSender
 from .detect import Detector, run as run_file
 from .live import LiveCapture, ask_sudo, default_interface, tcpdump_command
+
+
+def make_sender(args):
+    if not args.api:
+        return None
+    print(f'Enviando alertas para {args.api} (sensor: {args.sensor})')
+    return AlertSender(args.api, args.sensor)
+
+
+def close_sender(sender):
+    if sender:
+        sender.close()
+        if sender.sent:
+            print(f'{sender.sent:,} alerta(s) enviado(s) para a API')
 
 
 def cmd_ao_vivo(args):
     interface = args.interface or default_interface()
     ask_sudo()
-    detector = Detector(f'ao vivo ({interface})', args.db)
+    sender = make_sender(args)
+    detector = Detector(f'ao vivo ({interface})', args.db, sender=sender)
     print(f'Monitorando {interface}. Ctrl+C para parar.')
     if interface != 'lo':
         print('Dica: trafego para o proprio PC (127.0.0.1 ou o seu IP) passa pela interface lo, '
@@ -31,13 +50,15 @@ def cmd_ao_vivo(args):
         LiveCapture(tcpdump_command(interface), detector).run(duration=args.duracao)
     finally:
         detector.close()
+        close_sender(sender)
     report.summary(detector.run_id, args.db)
 
 
-def run_self_test(name, attack, db):
+def run_self_test(name, attack, args):
     """Captura na interface lo enquanto `attack()` roda em outra thread e mostra o resumo."""
     ask_sudo()
-    detector = Detector(f'{name} (lo)', db)
+    sender = make_sender(args)
+    detector = Detector(f'{name} (lo)', args.db, sender=sender)
     stop = threading.Event()
 
     def atacar():
@@ -51,7 +72,8 @@ def run_self_test(name, attack, db):
         LiveCapture(tcpdump_command('lo'), detector).run(stop=stop)
     finally:
         detector.close()
-    report.summary(detector.run_id, db)
+        close_sender(sender)
+    report.summary(detector.run_id, args.db)
 
 
 def cmd_teste_nmap(args):
@@ -67,7 +89,7 @@ def cmd_teste_nmap(args):
             subprocess.run(scan, stdout=subprocess.DEVNULL)
 
     print('Capturando na interface lo (127.0.0.1) e escaneando o proprio PC.\n')
-    run_self_test('teste-nmap', atacar, args.db)
+    run_self_test('teste-nmap', atacar, args)
 
 
 def flood(udp, seconds, rate, port=9):
@@ -103,11 +125,15 @@ def cmd_teste_flood(args):
         print(f'\r>>> {flood(args.udp, args.segundos, taxa):,} pacotes enviados' + ' ' * 30)
 
     print(f'Capturando na interface lo (127.0.0.1) e fazendo um {tipo} flood no proprio PC.\n')
-    run_self_test('teste-flood', atacar, args.db)
+    run_self_test('teste-flood', atacar, args)
 
 
 def cmd_arquivo(args):
-    run_id = run_file(args.pcap, args.db)
+    sender = make_sender(args)
+    try:
+        run_id = run_file(args.pcap, args.db, sender=sender)
+    finally:
+        close_sender(sender)
     report.summary(run_id, args.db)
 
 
@@ -123,6 +149,10 @@ def main():
     sub = parser.add_subparsers(dest='comando', required=True)
     comum = argparse.ArgumentParser(add_help=False)
     comum.add_argument('--db', default=storage.DB_PATH, help='banco SQLite (padrao: results/ids.db)')
+    comum.add_argument('--api', default=os.environ.get('IDS_API_URL'),
+                       help='URL da API que recebe os alertas, ex.: http://localhost:8080 (padrao: $IDS_API_URL)')
+    comum.add_argument('--sensor', default=os.environ.get('IDS_SENSOR', socket.gethostname()),
+                       help='nome deste sensor na API (padrao: $IDS_SENSOR ou o nome do PC)')
 
     p = sub.add_parser('ao-vivo', parents=[comum], help='monitora a rede e mostra alertas em tempo real')
     p.add_argument('-i', '--interface', help='interface de rede (padrao: a da rota padrao)')

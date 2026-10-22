@@ -7,7 +7,7 @@ Responda em **portugues**, com linguagem simples.
 Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
 - `src/data.py` limpeza + colunas removidas (atalhos, flags TCP) · `src/features.py` selecao (SHAP/correlacao)
 - `src/pipeline.py` `IDSPipeline`: modelo binario (BENIGN x ataque) -> modelo de tipo (DDoS/PortScan/WebAttack/SQLInjection/Desconhecido)
-- `src/flows.py` pacotes -> fluxos · `src/volume.py` deteccao por volume (janela de 10 s, limites em `Limits`) · `src/live.py` captura com tcpdump · `src/detect.py` classifica e grava · `src/storage.py` SQLite · `src/report.py` resumo · `src/ids.py` CLI
+- `src/flows.py` pacotes -> fluxos · `src/volume.py` deteccao por volume (janela de 10 s, limites em `Limits`) · `src/alerts.py` alertas no formato da API + envio HTTP em thread · `src/live.py` captura com tcpdump · `src/detect.py` classifica e grava · `src/storage.py` SQLite · `src/report.py` resumo · `src/ids.py` CLI
 - `sensor/notebooks/02..05` treino (gerados e executados); `notebook_*.ipynb` e `archive/` sao historico
 - `sensor/results/modelos/*.ubj|*.json` modelos versionados no git; `sensor/datas/raw/` CSVs (fora do git)
 
@@ -17,6 +17,7 @@ Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
 ./ids teste-nmap [--syn]     # escaneia 127.0.0.1 e mostra se detectou
 ./ids teste-flood [--udp]    # flood em 127.0.0.1:9 (taxa limitada) e mostra se detectou
 ./ids arquivo X.pcap | ./ids resumo [--lista]
+./ids <comando> --api http://localhost:8080 [--sensor NOME]   # tambem envia alertas (ou IDS_API_URL/IDS_SENSOR)
 cd sensor && ../.venv/bin/python -m pytest   # testes
 # Retreino: executar notebooks 02, 03, 04, 05 nessa ordem (de dentro de sensor/notebooks/)
 ```
@@ -28,6 +29,8 @@ cd sensor && ../.venv/bin/python -m pytest   # testes
   Qualquer mudanca deve ser validada contra os CSVs. Nao usar o pacote `cicflowmeter` do PyPI (escala errada).
 - Flags TCP do CIC-IDS-2017 estao erradas: ficam fora dos modelos (`FLAG_COLUMNS` em `sensor/src/data.py`).
 - O extrator precisa gerar todas as features candidatas (o retreino pode escolher qualquer uma).
+- Contrato com a API: `POST /api/alerts` `{sensor, alerts: [...]}`, campos camelCase (docstring de `src/alerts.py`
+  e README). Mudou o formato? Avisar o usuario: a API em Java depende dele.
 - Modelos olham um fluxo por vez; floods ficam com `src/volume.py` (conta so SYN sem ACK e UDP, nao respostas).
   Cada fluxo tem um tipo so: ataque de volume ativo vence o modelo (`detected_by`, `model_type` na tabela flows).
 

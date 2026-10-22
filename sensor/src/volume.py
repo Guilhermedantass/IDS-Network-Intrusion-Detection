@@ -110,7 +110,7 @@ class VolumeDetector:
 
         alerts = []
 
-        def alert(tipo, src, dst, packets, ports=None, sources=(), flooded=()):
+        def alert(tipo, src, dst, packets, ports=None, sources=(), flooded=(), dst_port=None):
             key = (tipo, src, dst)
             attack = self.active.get(key)
             if attack is None:
@@ -122,7 +122,8 @@ class VolumeDetector:
                 return
             self.last_alert[key] = now
             alerts.append({'ts': now_us / 1e6, 'start': attack.start, 'type': tipo, 'src_ip': src,
-                           'dst_ip': dst, 'packets': packets, 'rate': packets / lim.window,
+                           'dst_ip': dst, 'dst_port': dst_port, 'protocol': PROTOCOL[tipo],
+                           'packets': packets, 'rate': packets / lim.window,
                            'ports': ports, 'sources': len(sources) or None,
                            'source_ips': sorted(sources)})
 
@@ -144,18 +145,21 @@ class VolumeDetector:
             flooded = [p for p, n in ports.items() if n / lim.window >= lim.syn_rate]
             if flooded:
                 n = sum(ports[p] for p in flooded)
-                alert('SYN Flood', src, dst, n, ports=len(flooded), flooded=flooded)
+                alert('SYN Flood', src, dst, n, ports=len(flooded), flooded=flooded,
+                      dst_port=flooded[0] if len(flooded) == 1 else None)
             scanned = len(ports) - len(flooded)
             if scanned >= lim.scan_ports:
                 alert('PortScan', src, dst, sum(ports.values()) - sum(ports[p] for p in flooded), ports=scanned)
 
-        udp = defaultdict(lambda: [0, 0])  # (src, dst) -> [pacotes, respostas]
+        udp = defaultdict(lambda: [0, 0, set()])  # (src, dst) -> [pacotes, respostas, portas]
         for (src, dst, dport), n in udp_to.items():
             udp[(src, dst)][0] += n
             udp[(src, dst)][1] += udp_from[(dst, src, dport)]
-        for (src, dst), (n, replies) in udp.items():
+            udp[(src, dst)][2].add(dport)
+        for (src, dst), (n, replies, ports) in udp.items():
             if n / lim.window >= lim.udp_rate and replies < n * lim.udp_reply_ratio:
-                alert('UDP Flood', src, dst, n)
+                alert('UDP Flood', src, dst, n, ports=len(ports),
+                      dst_port=next(iter(ports)) if len(ports) == 1 else None)
 
         # ataque que parou: sai da lista depois que os fluxos dele ja foram classificados
         for key in [k for k, a in self.active.items() if a.end + lim.window < now]:
