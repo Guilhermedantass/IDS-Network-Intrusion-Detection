@@ -69,3 +69,25 @@ cd sensor && ../.venv/bin/python -m pytest   # testes
 `api/` (Java 25 + Spring Boot 4.1, PostgreSQL + Flyway, incidentes, WebSocket STOMP, Spring AI + Ollama) ->
 `web/` (Angular 22, dashboard/ao vivo/incidentes/controle do sensor) -> `docker compose` (instalavel; captura
 ao vivo so em host Linux). Ordem: sensor -> API -> Angular -> LLM -> Docker.
+Feito: sensor, API, Angular (visao geral, incidentes, detalhe, sensores). Falta: LLM e Docker.
+Decidido: NAO expor no alerta/dashboard se o modelo de ML tambem detectou (fica `detectedBy: volume`).
+Na pratica, o usuario tem pedido que eu escreva o Java/Angular e explique cada parte (perguntar se mudar).
+
+## Plano para publicar no LinkedIn (combinado em 2026-10-22, nada comecado)
+O usuario achou o projeto "pobre" para postar. Conclusao: o projeto ja e acima da media (captura real, extrator
+do CICFlowMeter com os bugs, flags TCP erradas no dataset, deteccao por volume cobrindo o ponto cego do modelo,
+sistema ponta a ponta com testes); falta demo e gancho. Proposta, por ordem:
+1. **Detectar e responder (IPS):** botao "Bloquear origem" no incidente criando regra no `nftables` (e modo
+   automatico opcional), com lista de excecoes (nunca bloquear o proprio PC/gateway) e desbloqueio pelo dashboard.
+2. **MITRE ATT&CK por incidente:** PortScan -> T1046, floods/DDoS -> T1498 (conferir os IDs e subtecnicas antes).
+3. **LLM explicando cada incidente** (o que e, risco, o que fazer), usando o MITRE; Spring AI + Ollama, modelo
+   configuravel (~3B no notebook, 7-8B em casa).
+4. **Demo com ataque de outra maquina:** VM Kali atacando o PC pela rede (sensor sem `-i lo`), video de ~30 s:
+   ataque -> incidente ativo com MITRE -> explicacao da LLM -> bloqueio -> ataque para.
+5. Vitrine: README da raiz reescrito (prints/GIF no topo, diagrama, metricas REAIS de
+   `sensor/results/modelos/*.json`, decisoes tecnicas, limitacoes), `docker compose up` (banco + API + dashboard;
+   sensor analisando um pcap de exemplo), CI no GitHub Actions (testes das 3 partes + selo), LICENSE (MIT?).
+6. Opcional: aviso no Telegram/Discord quando um incidente abre.
+O texto do post e do usuario, na voz dele; ajudar so com estrutura e revisao.
+Em aberto: (a) se da para rodar VM (VirtualBox/KVM) no notebook ou no PC de casa; (b) se o usuario quer o
+bloqueio automatico ou so o botao manual.
