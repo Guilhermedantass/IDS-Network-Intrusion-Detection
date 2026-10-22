@@ -44,3 +44,17 @@ def test_live_capture_reports_failed_command(tmp_path):
         raise AssertionError('esperava SystemExit')
     finally:
         detector.close()
+
+
+def test_live_capture_reports_volume_alerts(tmp_path):
+    pcap = tmp_path / 'scan.pcap'
+    write_pcap(pcap, [Packet(ts=1_700_000_000_000_000 + i * 1000, src='10.0.0.9', dst='10.0.0.2',
+                             sport=40000, dport=i + 1, proto=6, payload=0, header=24, flags=SYN)
+                      for i in range(300)])
+    volume = []
+    detector = Detector('teste', tmp_path / 'ids.db')
+    LiveCapture(['cat', str(pcap)], detector, on_alert=lambda rows: None, on_volume=volume.extend,
+                clock='packet').run()
+    detector.close()
+    assert [(a['type'], a['ports']) for a in volume] == [('PortScan', 300)]
+    assert detector.volume_counts == {'PortScan': 1}

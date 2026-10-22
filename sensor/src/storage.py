@@ -35,6 +35,22 @@ CREATE TABLE IF NOT EXISTS flows (
 
 CREATE INDEX IF NOT EXISTS idx_flows_ts ON flows(ts);
 CREATE INDEX IF NOT EXISTS idx_flows_attack ON flows(is_attack, attack_type);
+
+-- alertas da deteccao por volume (src.volume): trafego somado, nao um fluxo
+CREATE TABLE IF NOT EXISTS volume_alerts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id      INTEGER NOT NULL REFERENCES runs(id),
+    ts          REAL NOT NULL,           -- fim da janela (epoch, segundos)
+    type        TEXT NOT NULL,           -- SYN Flood, DDoS, UDP Flood, PortScan
+    src_ip      TEXT,                    -- NULL no DDoS (muitas origens)
+    dst_ip      TEXT NOT NULL,
+    packets     INTEGER NOT NULL,        -- pacotes contados na janela
+    rate        REAL NOT NULL,           -- pacotes/s na janela
+    ports       INTEGER,
+    sources     INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_volume_run ON volume_alerts(run_id, ts);
 '''
 
 
@@ -87,4 +103,14 @@ def save_flows(conn, run_id, flows, predictions, feature_columns):
                            fwd_packets, bwd_packets, fwd_bytes, bwd_bytes,
                            attack_prob, is_attack, attack_type, type_confidence, features)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', rows)
+    conn.commit()
+
+
+def save_volume_alerts(conn, run_id, alerts):
+    """Salva os alertas de src.volume (lista de dicts)."""
+    conn.executemany('''
+        INSERT INTO volume_alerts (run_id, ts, type, src_ip, dst_ip, packets, rate, ports, sources)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        [(run_id, a['ts'], a['type'], a['src_ip'], a['dst_ip'], a['packets'], a['rate'],
+          a['ports'], a['sources']) for a in alerts])
     conn.commit()

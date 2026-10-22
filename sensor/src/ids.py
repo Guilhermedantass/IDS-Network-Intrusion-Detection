@@ -2,11 +2,13 @@
 
     ./ids ao-vivo [-i INTERFACE] [--duracao S]   monitora a rede e mostra alertas
     ./ids teste-nmap [--syn]                     escaneia o proprio PC e mostra se o IDS detectou
+    ./ids teste-flood [--udp]                    faz um flood no proprio PC e mostra se o IDS detectou
     ./ids arquivo CAPTURA.pcap                   analisa um arquivo de captura
     ./ids resumo [RUN] [--lista]                 resultado da ultima execucao (ou da RUN)
 """
 import argparse
 import shutil
+import socket
 import subprocess
 import threading
 import time
@@ -32,31 +34,76 @@ def cmd_ao_vivo(args):
     report.summary(detector.run_id, args.db)
 
 
-def cmd_teste_nmap(args):
-    if not shutil.which('nmap'):
-        raise SystemExit('nmap nao encontrado. Instale com: sudo apt install nmap')
+def run_self_test(name, attack, db):
+    """Captura na interface lo enquanto `attack()` roda em outra thread e mostra o resumo."""
     ask_sudo()
-    detector = Detector('teste-nmap (lo)', args.db)
+    detector = Detector(f'{name} (lo)', db)
     stop = threading.Event()
-    scans = [['nmap', '-sT', '-p', args.portas, '127.0.0.1']]
-    if args.syn:
-        scans.append(['sudo', 'nmap', '-sS', '-p', args.portas, '127.0.0.1'])
 
     def atacar():
         time.sleep(2)   # tempo para o tcpdump comecar a capturar
-        for scan in scans:
-            print(f'\r>>> {" ".join(scan)}' + ' ' * 30)
-            subprocess.run(scan, stdout=subprocess.DEVNULL)
+        attack()
         time.sleep(2)   # ultimos pacotes chegarem
         stop.set()
 
-    print('Capturando na interface lo (127.0.0.1) e escaneando o proprio PC.\n')
     threading.Thread(target=atacar, daemon=True).start()
     try:
         LiveCapture(tcpdump_command('lo'), detector).run(stop=stop)
     finally:
         detector.close()
-    report.summary(detector.run_id, args.db)
+    report.summary(detector.run_id, db)
+
+
+def cmd_teste_nmap(args):
+    if not shutil.which('nmap'):
+        raise SystemExit('nmap nao encontrado. Instale com: sudo apt install nmap')
+    scans = [['nmap', '-sT', '-p', args.portas, '127.0.0.1']]
+    if args.syn:
+        scans.append(['sudo', 'nmap', '-sS', '-p', args.portas, '127.0.0.1'])
+
+    def atacar():
+        for scan in scans:
+            print(f'\r>>> {" ".join(scan)}' + ' ' * 30)
+            subprocess.run(scan, stdout=subprocess.DEVNULL)
+
+    print('Capturando na interface lo (127.0.0.1) e escaneando o proprio PC.\n')
+    run_self_test('teste-nmap', atacar, args.db)
+
+
+def flood(udp, seconds, rate, port=9):
+    """Flood contra 127.0.0.1 em uma porta fechada (9 = discard): so gera trafego, nao afeta nada.
+
+    `rate` limita os pacotes/s: sem limite passa de 100 mil/s e cada SYN vira um
+    fluxo para o modelo classificar.
+    """
+    inicio = time.monotonic()
+    sent = 0
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_sock:
+        while (agora := time.monotonic() - inicio) < seconds:
+            if sent > agora * rate:
+                time.sleep(0.001)
+                continue
+            if udp:
+                udp_sock.sendto(b'x' * 64, ('127.0.0.1', port))
+            else:
+                # cada connect manda um SYN; a porta fechada responde RST na hora
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect_ex(('127.0.0.1', port))
+            sent += 1
+    return sent
+
+
+def cmd_teste_flood(args):
+    tipo = 'UDP' if args.udp else 'SYN'
+    # UDP: todo o flood e um fluxo so, entao da para mandar mais sem pesar no modelo
+    taxa = args.taxa or (10_000 if args.udp else 2000)
+
+    def atacar():
+        print(f'\r>>> {tipo} flood em 127.0.0.1:9 por {args.segundos:g}s, {taxa:,} pacotes/s' + ' ' * 30)
+        print(f'\r>>> {flood(args.udp, args.segundos, taxa):,} pacotes enviados' + ' ' * 30)
+
+    print(f'Capturando na interface lo (127.0.0.1) e fazendo um {tipo} flood no proprio PC.\n')
+    run_self_test('teste-flood', atacar, args.db)
 
 
 def cmd_arquivo(args):
@@ -86,6 +133,12 @@ def main():
     p.add_argument('--syn', action='store_true', help='tambem faz o scan SYN (sudo nmap -sS)')
     p.add_argument('--portas', default='1-1000', help='portas escaneadas (padrao: 1-1000)')
     p.set_defaults(func=cmd_teste_nmap)
+
+    p = sub.add_parser('teste-flood', parents=[comum], help='faz um flood no proprio PC e mostra se o IDS detectou')
+    p.add_argument('--udp', action='store_true', help='flood UDP (padrao: flood de conexoes TCP/SYN)')
+    p.add_argument('--segundos', type=float, default=5, help='duracao do flood (padrao: 5)')
+    p.add_argument('--taxa', type=int, help='pacotes por segundo (padrao: 2000 SYN, 10000 UDP)')
+    p.set_defaults(func=cmd_teste_flood)
 
     p = sub.add_parser('arquivo', parents=[comum], help='analisa um arquivo .pcap')
     p.add_argument('pcap')

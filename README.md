@@ -50,6 +50,7 @@ IDS-Network-Intrusion-Detection/
 │   │   ├── flows.py                    # Pacotes -> fluxos com as features do CIC-IDS-2017
 │   │   ├── storage.py                  # Banco SQLite das detecções
 │   │   ├── detect.py                   # Classificação de lotes de fluxos e gravação no SQLite
+│   │   ├── volume.py                   # Detecção por volume (floods, DDoS, scans)
 │   │   ├── live.py                     # Captura ao vivo com tcpdump
 │   │   ├── report.py                   # Resumo das execuções
 │   │   ├── ids.py                      # Linha de comando (./ids)
@@ -141,17 +142,36 @@ Tudo passa pelo comando `./ids` (usa o Python do `.venv` automaticamente):
 ./ids ao-vivo -i lo --duracao 60
 ./ids teste-nmap              # escaneia o próprio PC (127.0.0.1) e mostra se o IDS detectou
 ./ids teste-nmap --syn        # inclui o scan SYN (sudo nmap -sS)
+./ids teste-flood             # flood de conexões (SYN) no próprio PC, porta fechada 9
+./ids teste-flood --udp       # flood UDP no próprio PC
 ./ids arquivo captura.pcap    # analisa um arquivo de captura
 ./ids resumo                  # resultado da última execução
 ./ids resumo --lista          # todas as execuções
 ```
 
-`ao-vivo` e `teste-nmap` capturam com `tcpdump`, por isso pedem a senha do `sudo`. Os resultados ficam em
+`ao-vivo`, `teste-nmap` e `teste-flood` capturam com `tcpdump`, por isso pedem a senha do `sudo`. Os resultados ficam em
 `sensor/results/ids.db` (use `--db` para outro arquivo).
 
 ```
 tcpdump / PCAP -> src/flows.py (features de fluxo) -> IDSPipeline -> SQLite -> alertas e resumo
+               └> src/volume.py (contagem por segundo) ┘
 ```
+
+### Detecção por volume
+
+Os modelos olham um fluxo por vez, então não enxergam um flood: milhares de conexões curtas que, uma a uma,
+parecem normais. O `sensor/src/volume.py` conta os pacotes em janelas de 10 s e compara com limites simples
+(classe `Limits`):
+
+| Alerta | Regra (padrão) |
+|---|---|
+| SYN Flood | uma origem abre mais de 100 conexões/s (SYN sem ACK) com o mesmo destino |
+| DDoS | um destino recebe SYN de 20 ou mais origens, somando mais de 200/s |
+| UDP Flood | uma origem manda mais de 2.000 pacotes UDP/s para um destino, com menos de 10% de resposta |
+| PortScan | uma origem tenta conexão em 100 ou mais portas do mesmo destino |
+
+Só pacotes que iniciam conexão contam para SYN Flood, DDoS e PortScan, porque as respostas de um servidor vão
+para muitas portas do cliente e pareceriam um scan. O mesmo alerta não se repete por 30 s.
 
 No modo ao vivo, um fluxo também é encerrado após 10 s sem pacotes (o CICFlowMeter original só encerra no
 FIN ou após 120 s); sem isso, um port scan só geraria alerta 2 minutos depois.
@@ -166,8 +186,9 @@ incluindo os bugs dele, conferidos contra os CSVs:
 
 O pacote `cicflowmeter` do PyPI não é usado porque calcula várias features em outra escala.
 
-O banco tem duas tabelas: `runs` (uma por execução) e `flows` (um fluxo por linha, com a previsão; as
-features ficam salvas em JSON só para os fluxos classificados como ataque).
+O banco tem três tabelas: `runs` (uma por execução), `flows` (um fluxo por linha, com a previsão; as
+features ficam salvas em JSON só para os fluxos classificados como ataque) e `volume_alerts` (alertas da
+detecção por volume).
 
 ### PCAPs do CIC-IDS-2017
 
