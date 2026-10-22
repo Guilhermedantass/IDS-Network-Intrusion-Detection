@@ -50,7 +50,7 @@ public class AlertService {
     /** Os alertas de um incidente, em ordem de tempo (lista vazia se o incidente nao existe). */
     @Transactional(readOnly = true)
     public List<AlertResponse> byIncident(long incidentId) {
-        return repository.findByIncidentIdOrderByTsAsc(incidentId).stream()
+        return repository.findByIncident_IdOrderByTsAsc(incidentId).stream()
                 .map(Alert::toResponse)
                 .toList();
     }

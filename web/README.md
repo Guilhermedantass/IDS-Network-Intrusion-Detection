@@ -23,11 +23,15 @@ src/app/
 ├── config.ts                    # endereços da API e o GAP de 60 s (mesmo valor da API)
 ├── clock.ts                     # relógio de 1 s compartilhado (status ativo/encerrado)
 ├── app.ts / app.html / app.scss # casca: barra lateral + <router-outlet>; liga o WebSocket ao abrir
-├── app.routes.ts                # /incidents (lista) e /incidents/:id (detalhe)
+├── app.routes.ts                # /overview (inicial), /incidents (lista) e /incidents/:id (detalhe)
 ├── shell/sidebar.*              # barra lateral: navegação e status da conexão com a API
+├── overview/                    # visão geral (página inicial): manchete, números, gráficos e rankings das últimas 24 h
+│   ├── stats.ts                 # o formato do resumo (espelha o StatsResponse do Java)
+│   └── overview.*
 └── incidents/
     ├── incident.ts              # o formato do incidente (espelha o IncidentMessage do Java)
     ├── incident-alert.ts        # o formato de um alerta (espelha o AlertResponse do Java)
+    ├── attack-types.ts          # cor fixa por tipo de ataque
     ├── incident-rules.ts        # funções puras: upsertIncident, isActive, formatDuration
     ├── incident-rules.spec.ts   # os testes delas
     ├── incident-store.ts        # estado (signals) + GET + WebSocket
@@ -41,7 +45,9 @@ quando ele está ativo) ficam em funções puras, sem Angular, para dar para tes
 ## Visual
 
 Tema claro, IBM Plex Sans (e Plex Mono só nos IPs). Cores e fontes são variáveis em `src/styles.scss`: um tema escuro
-depois é só redefinir essas variáveis. O vermelho (`--signal`) aparece só em ataque ativo.
+depois é só redefinir essas variáveis. O vermelho (`--signal`) aparece só em ataque ativo. Nos gráficos, cada tipo de ataque tem uma cor fixa
+(`incidents/attack-types.ts`, paleta validada para daltonismo), sempre com legenda e versão em tabela.
+Números e datas no formato brasileiro (`LOCALE_ID` pt-BR no `app.config.ts`).
 
 ## Testando ao vivo
 

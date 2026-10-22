@@ -1,0 +1,350 @@
+h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+a {
+  color: inherit;
+}
+
+.empty {
+  margin-top: 32px;
+}
+
+// ---- a manchete: a unica coisa grande da pagina
+
+.verdict {
+  padding-bottom: 28px;
+}
+
+.headline {
+  margin: 0;
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.verdict p.muted {
+  margin: 10px 0 0;
+}
+
+.verdict.alarm .headline {
+  color: var(--signal);
+}
+
+.headline a {
+  text-decoration: none;
+}
+
+.headline a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+// ---- numeros: so texto, com uma linha fina entre eles
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 18px 0;
+  border-block: 1px solid var(--line);
+}
+
+.tiles > div {
+  padding: 0 20px;
+  border-left: 1px solid var(--line);
+}
+
+.tiles > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.tiles dt {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tiles dd {
+  margin: 4px 0 0;
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tiles dd.from {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.unit {
+  font-size: 0.5em;
+  font-weight: 500;
+}
+
+// ---- blocos e pares de blocos
+
+.block {
+  margin-top: 40px;
+}
+
+.block > h2 {
+  margin-bottom: 14px;
+}
+
+.block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-bottom: 18px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 56px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+// ---- por hora: colunas empilhadas por tipo, com 2px de folga entre barras e entre pedacos
+
+.hours {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 200px;
+  border-bottom: 1px solid var(--line);
+}
+
+.col {
+  position: relative;
+  flex: 1;
+  min-width: 0;   // sem isso, um item flex nao encolhe abaixo do proprio conteudo
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column-reverse;   // o primeiro tipo fica embaixo
+  gap: 2px;
+}
+
+.seg {
+  min-height: 2px;
+}
+
+.seg:last-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.col:hover .stack {
+  filter: brightness(0.9);
+}
+
+.peak {
+  margin-bottom: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 1;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: var(--bg);
+  background: var(--ink);
+  border-radius: 6px;
+}
+
+.tip-title {
+  font-weight: 600;
+}
+
+.col:hover .tip {
+  display: flex;
+}
+
+// nas pontas, a legenda alinha pela borda em vez de centralizar (senao sai do grafico)
+.col:nth-child(-n + 3) .tip {
+  left: 0;
+  translate: none;
+}
+
+.col:nth-last-child(-n + 3) .tip {
+  left: auto;
+  right: 0;
+  translate: none;
+}
+
+.hour-axis {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.hour-axis span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+details {
+  margin-top: 14px;
+  font-size: 0.9rem;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+details .table-wrap {
+  margin-top: 10px;
+}
+
+// ---- incidentes recentes
+
+.recent {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.recent a {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+}
+
+.recent a:hover .what {
+  text-decoration: underline;
+}
+
+.what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.when {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.more {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+// ---- por tipo: barras deitadas, o valor escrito ao lado
+
+.types {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: 12px 14px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.types li {
+  display: contents;
+}
+
+.types .label {
+  font-weight: 500;
+}
+
+.types .track {
+  height: 14px;
+}
+
+.types .bar {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 0 4px 4px 0;
+}
+
+.types .value {
+  font-variant-numeric: tabular-nums;
+}
+
+.ips {
+  font-size: 0.95rem;
+}
+
+// ---- telas menores
+
+@media (max-width: 960px) {
+  .pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 0;
+  }
+
+  .tiles > div:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .tiles dd {
+    font-size: 1.6rem;
+  }
+}
