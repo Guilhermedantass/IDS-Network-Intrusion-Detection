@@ -31,6 +31,9 @@ Para o sensor mandar os alertas: `./ids teste-flood --api http://localhost:8080`
 | `GET /api/alerts?incident={id}` | dashboard | os alertas de um incidente, em ordem de tempo (`AlertResponse`) |
 | `GET /api/stats?hours=24` | dashboard | resumo da visão geral: totais, maior taxa, incidente mais longo, por tipo, por hora (com os tipos), top 5 origens e alvos (`hours` de 1 a 168) |
 | `ws://localhost:8080/ws` (STOMP) | dashboard | tópico `/topic/incidents`: um incidente cada vez que abre ou muda |
+| `POST /api/sensors/heartbeat` | sensor (`./ids servico`) | estado do sensor a cada 5 s; a resposta é o estado desejado `{capture, interface}` |
+| `GET /api/sensors` | dashboard | os sensores conhecidos: online (heartbeat há até 15 s), estado e pedido |
+| `PUT /api/sensors/{name}/capture` | dashboard | pede para iniciar/parar: `{"capture": true, "interface": "lo"}` |
 | `GET /actuator/health` | monitoramento | `{"status": "UP"}` |
 
 O `GET` e o WebSocket mandam o incidente no mesmo formato, sempre completo:
@@ -42,6 +45,13 @@ O `GET` e o WebSocket mandam o incidente no mesmo formato, sempre completo:
 
 O dashboard busca a lista com o `GET` ao abrir e depois só troca pelo `id` o que chega no WebSocket. O navegador só
 aceita conexões de `ids.dashboard-origin` (`application.yml`, padrão `http://localhost:4200`); o CORS libera só `GET`.
+
+## Controle dos sensores
+
+O sensor nunca recebe chamadas. O serviço (`./ids servico --api ...`) manda o estado a cada 5 s e recebe na resposta
+o estado desejado; o dashboard só muda o desejado. Assim o sensor não abre porta nenhuma e funciona em outra máquina.
+Fica em memória: se a API reiniciar, o primeiro heartbeat de cada sensor recria tudo (e o desejado vira o estado atual,
+para não parar uma captura que estava rodando). Não há login: quem alcança a porta 8080 pode iniciar/parar capturas.
 
 ## Incidentes
 
@@ -74,9 +84,15 @@ src/main/java/dev/guilhermedantas/ids/
 │   ├── StatsResponse.java          # o resumo (totais, por tipo, por hora)
 │   ├── StatsService.java           # as contas, agrupando em Java
 │   └── StatsController.java        # GET /api/stats
+├── sensor/                         # controle dos sensores (em memória; o sensor reenvia o estado a cada 5 s)
+│   ├── SensorHeartbeat.java        # o que o sensor manda
+│   ├── SensorCommand.java          # o estado desejado (resposta do heartbeat e corpo do PUT)
+│   ├── SensorView.java             # o que o dashboard vê
+│   ├── SensorRegistry.java
+│   └── SensorController.java
 └── config/
     ├── WebSocketConfig.java        # STOMP em /ws, broker simples em /topic
-    └── WebConfig.java              # CORS para o dashboard
+    └── WebConfig.java              # CORS para o dashboard (GET; PUT só nos sensores)
 src/main/resources/
 ├── application.yml
 └── db/migration/                   # Flyway

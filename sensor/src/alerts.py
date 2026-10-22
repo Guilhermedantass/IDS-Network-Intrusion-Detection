@@ -140,6 +140,8 @@ class AlertSender:
         with self.cond:
             self.deadline = time.monotonic() + timeout
             self.cond.notify()
-        self.thread.join(timeout)
+        # folga de uma requisicao: se o prazo acabar no meio de um envio, a thread ainda precisa
+        # devolver o lote para a fila antes de contarmos o que ficou sem enviar
+        self.thread.join(timeout + self.timeout + 1)
         if self.queue:
             self.log(f'{len(self.queue)} alerta(s) nao enviado(s) para a API')
