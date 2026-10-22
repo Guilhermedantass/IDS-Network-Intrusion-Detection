@@ -1,5 +1,5 @@
 import { Incident } from './incident';
-import { isActive, upsertIncident } from './incident-rules';
+import { formatDuration, isActive, upsertIncident } from './incident-rules';
 
 function incident(id: number, lastSeenAt: string, alertCount = 1): Incident {
   return {
@@ -53,5 +53,20 @@ describe('isActive', () => {
 
   it('encerrado depois disso', () => {
     expect(isActive(ultimoAlerta, Date.parse('2026-10-22T13:01:01Z'))).toBe(false);
+  });
+});
+
+describe('formatDuration', () => {
+  it('segundos', () => {
+    expect(formatDuration(0)).toBe('0 s');
+    expect(formatDuration(45_000)).toBe('45 s');
+  });
+
+  it('minutos', () => {
+    expect(formatDuration(125_000)).toBe('2 min 05 s');
+  });
+
+  it('horas', () => {
+    expect(formatDuration(3_780_000)).toBe('1 h 03 min');
   });
 });

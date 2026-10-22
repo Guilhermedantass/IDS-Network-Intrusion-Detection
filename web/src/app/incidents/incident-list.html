@@ -16,7 +16,7 @@
   </div>
 } @else {
   <div class="table-wrap">
-    <table>
+    <table class="data">
       <thead>
         <tr>
           <th>Status</th>
@@ -34,9 +34,11 @@
           @let active = isActive(incident, now());
           <tr [class.active]="active">
             <td>
-              <span class="state">{{ active ? 'Ativo' : 'Encerrado' }}</span>
+              <span class="state" [class.on]="active">{{ active ? 'Ativo' : 'Encerrado' }}</span>
             </td>
-            <td class="type">{{ incident.type }}</td>
+            <td class="type">
+              <a [routerLink]="['/incidents', incident.id]">{{ incident.type }}</a>
+            </td>
             <td class="ip">{{ incident.dstIp }}</td>
             <td class="muted">{{ incident.sensor }}</td>
             <td>{{ incident.startedAt | date: 'dd/MM HH:mm:ss' }}</td>

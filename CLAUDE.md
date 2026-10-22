@@ -14,14 +14,15 @@ Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
 `api/` (Java 25 + Spring Boot 4.1.1, pacote `dev.guilhermedantas.ids`, Maven via `./mvnw`; detalhes em `api/README.md`):
 - `alert/` `POST /api/alerts`: valida, salva em `alerts` e coloca cada alerta num incidente, tudo numa transacao
 - `incident/` incidente = mesmo sensor + type + dstIp com ate 60 s (`IncidentService.GAP`) entre alertas;
-  `GET /api/incidents?limit=` (mais recentes primeiro); WebSocket STOMP em `/ws`, topico `/topic/incidents`
+  `GET /api/incidents?limit=`, `/api/incidents/{id}`, `GET /api/alerts?incident=`; WebSocket STOMP em `/ws`, topico `/topic/incidents`
   (`IncidentMessage`, sempre o estado completo; sai so depois do commit via `@TransactionalEventListener`)
 - `config/` WebSocket + CORS (so GET); unica origem aceita: `ids.dashboard-origin` no `application.yml` (localhost:4200)
 - Migracoes Flyway em `db/migration/` (V1 alerts, V2 incidents + `alerts.incident_id`); nunca editar uma que ja rodou
 - Postgres de dev no `api/compose.yaml` (sobe sozinho com spring-boot-docker-compose); testes com Testcontainers
 
 `web/` (Angular 22 standalone + signals, sem zone.js, Vitest, `@stomp/stompjs`; detalhes em `web/README.md`):
-- pagina de incidentes ao vivo (GET + WebSocket, status ativo/encerrado pelo relogio) e barra lateral (`shell/`)
+- `/incidents` ao vivo (GET + WebSocket, status ativo/encerrado pelo `Clock`) e `/incidents/:id` com os alertas;
+  WebSocket ligado no `App`; barra lateral em `shell/`
 - visual: tema claro, IBM Plex Sans/Mono, tokens em `styles.scss`; vermelho (`--signal`) so para ataque ativo
 - precisa rodar em localhost:4200 (origem aceita pela API)
 

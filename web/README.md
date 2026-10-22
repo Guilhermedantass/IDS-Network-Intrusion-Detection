@@ -21,15 +21,18 @@ Para ter incidentes na tela: `./ids teste-flood --api http://localhost:8080` (na
 ```
 src/app/
 ├── config.ts                    # endereços da API e o GAP de 60 s (mesmo valor da API)
-├── app.ts / app.html / app.scss # casca: barra lateral + <router-outlet>
-├── app.routes.ts                # '' -> IncidentList
+├── clock.ts                     # relógio de 1 s compartilhado (status ativo/encerrado)
+├── app.ts / app.html / app.scss # casca: barra lateral + <router-outlet>; liga o WebSocket ao abrir
+├── app.routes.ts                # /incidents (lista) e /incidents/:id (detalhe)
 ├── shell/sidebar.*              # barra lateral: navegação e status da conexão com a API
 └── incidents/
     ├── incident.ts              # o formato do incidente (espelha o IncidentMessage do Java)
-    ├── incident-rules.ts        # funções puras: upsertIncident, isActive
+    ├── incident-alert.ts        # o formato de um alerta (espelha o AlertResponse do Java)
+    ├── incident-rules.ts        # funções puras: upsertIncident, isActive, formatDuration
     ├── incident-rules.spec.ts   # os testes delas
     ├── incident-store.ts        # estado (signals) + GET + WebSocket
-    └── incident-list.*          # a tela
+    ├── incident-list.*          # a lista
+    └── incident-detail.*        # um incidente e os alertas dele
 ```
 
 Quem guarda o estado é o **store**; a tela só lê os signals dele. As regras (como juntar um incidente na lista,

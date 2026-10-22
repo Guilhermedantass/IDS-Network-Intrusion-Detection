@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Limit;
@@ -36,6 +37,12 @@ public class IncidentService {
         return repository.findAllByOrderByLastSeenAtDesc(Limit.of(limit)).stream()
                 .map(IncidentMessage::from)
                 .toList();
+    }
+
+    /** Um incidente pelo id (pagina de detalhe); vazio se nao existe. */
+    @Transactional(readOnly = true)
+    public Optional<IncidentMessage> find(long id) {
+        return repository.findById(id).map(IncidentMessage::from);
     }
 
     /**
