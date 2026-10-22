@@ -41,8 +41,8 @@ def summary(run_id=None, db_path=storage.DB_PATH, top=10):
         print(f'    {tipo:<14} {n:>9,}  ({n / total:.1%})')
 
     grupos = conn.execute('''
-        SELECT attack_type, src_ip, dst_ip, COUNT(*), COUNT(DISTINCT dst_port),
-               MIN(ts), MAX(ts), AVG(attack_prob)
+        SELECT attack_type, src_ip, dst_ip, COUNT(*), COUNT(DISTINCT dst_port), MIN(ts), MAX(ts),
+               MAX(COALESCE(detected_by, 'modelo') LIKE 'modelo%'), MAX(detected_by LIKE '%volume')
         FROM flows WHERE run_id = ? AND is_attack = 1
         GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT ?''', (run_id, top)).fetchall()
     conn.close()
@@ -50,7 +50,8 @@ def summary(run_id=None, db_path=storage.DB_PATH, top=10):
         print('\n    Nenhum ataque detectado.')
         return
     print('\n    Principais origens de ataque:')
-    print(f'    {"tipo":<13} {"origem":<16} {"destino":<16} {"fluxos":>7} {"portas":>7}  {"prob":>5}  periodo')
-    for tipo, src, dst, n, portas, ini, fim, prob in grupos:
-        print(f'    {tipo:<13} {src:<16} {dst:<16} {n:>7,} {portas:>7,}  {prob:>5.2f}  '
+    print(f'    {"tipo":<13} {"origem":<16} {"destino":<16} {"fluxos":>7} {"portas":>7}  {"detectado por":<14} periodo')
+    for tipo, src, dst, n, portas, ini, fim, por_modelo, por_volume in grupos:
+        detector = '+'.join(nome for nome, sim in (('modelo', por_modelo), ('volume', por_volume)) if sim)
+        print(f'    {tipo:<13} {src:<16} {dst:<16} {n:>7,} {portas:>7,}  {detector:<14} '
               f'{_hora(ini)} -> {_hora(fim)[-8:]}')

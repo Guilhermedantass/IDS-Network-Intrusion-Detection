@@ -2,7 +2,8 @@
 
 O tcpdump captura os pacotes (precisa de sudo) e escreve o pcap na saida
 padrao; uma thread le os pacotes e o laco principal monta os fluxos,
-encerra os inativos a cada segundo e classifica os que terminaram.
+encerra os inativos a cada segundo e classifica os que terminaram. A cada
+segundo tambem checa a deteccao por volume (src.volume).
 """
 import queue
 import subprocess
@@ -10,6 +11,7 @@ import threading
 import time
 from datetime import datetime
 
+from .alerts import model_alerts
 from .flows import FlowMeter, read_stream
 
 IDLE_TIMEOUT = 10   # s sem pacotes para encerrar um fluxo
@@ -37,16 +39,24 @@ def ask_sudo():
 
 
 def print_alerts(rows):
-    """Agrupa os ataques do lote por tipo/origem/destino e imprime uma linha por grupo."""
-    attacks = rows[rows['is_attack'] == 1]
-    if attacks.empty:
-        return
+    """Agrupa os ataques do lote por tipo/origem/destino e imprime uma linha por grupo.
+
+    Fluxos de ataques de volume ficam de fora: o alerta deles ja saiu em print_volume_alerts.
+    """
     hora = datetime.now().strftime('%H:%M:%S')
-    grupos = attacks.groupby(['attack_type', 'Src IP', 'Dst IP']).agg(
-        fluxos=('attack_prob', 'size'), portas=('Dst Port', 'nunique'), prob=('attack_prob', 'mean'))
-    for (tipo, src, dst), g in grupos.iterrows():
-        print(f'\r[{hora}] ALERTA {tipo:<12} {src} -> {dst}  '
-              f'{int(g["fluxos"])} fluxo(s), {int(g["portas"])} porta(s), prob {g["prob"]:.2f}' + ' ' * 10)
+    for a in model_alerts(rows):
+        print(f'\r[{hora}] ALERTA {a["type"]:<12} {a["srcIp"]} -> {a["dstIp"]}  [modelo] '
+              f'{a["flows"]} fluxo(s), {a["ports"]} porta(s), prob {a["probability"]:.2f}' + ' ' * 10)
+
+
+def print_volume_alerts(alerts):
+    """Imprime uma linha por alerta da deteccao por volume."""
+    hora = datetime.now().strftime('%H:%M:%S')
+    for a in alerts:
+        origem = a['src_ip'] or f'{a["sources"]} origens'
+        extra = f', {a["ports"]} porta(s)' if a['ports'] else ''
+        print(f'\r[{hora}] ALERTA {a["type"]:<12} {origem} -> {a["dst_ip"]}  [volume] '
+              f'{a["rate"]:,.0f} pacotes/s{extra}' + ' ' * 10)
 
 
 class LiveCapture:
@@ -56,8 +66,10 @@ class LiveCapture:
     real); `clock='packet'` usa o horario do ultimo pacote (para testes com arquivos).
     """
 
-    def __init__(self, command, detector, on_alert=print_alerts, clock='wall', idle=IDLE_TIMEOUT):
-        self.command, self.detector, self.on_alert = command, detector, on_alert
+    def __init__(self, command, detector, on_alert=print_alerts, on_volume=print_volume_alerts,
+                 clock='wall', idle=IDLE_TIMEOUT):
+        self.command, self.detector = command, detector
+        self.on_alert, self.on_volume = on_alert, on_volume
         self.clock, self.idle_us = clock, int(idle * 1e6)
         self.meter = FlowMeter()
         self.last_ts = 0
@@ -69,6 +81,11 @@ class LiveCapture:
         rows = self.detector.process(flows)
         if rows is not None:
             self.on_alert(rows)
+
+    def _check_volume(self):
+        alerts = self.detector.check_volume(self._now_us())
+        if alerts:
+            self.on_volume(alerts)
 
     def _status(self):
         d = self.detector
@@ -103,6 +120,7 @@ class LiveCapture:
                     break
                 if pkt:
                     self.last_ts = pkt.ts
+                    self.detector.observe(pkt)
                     pending += self.meter.process(pkt)
                 if (stop and stop.is_set()) or (deadline and time.monotonic() > deadline):
                     break
@@ -110,6 +128,7 @@ class LiveCapture:
                     pending += self.meter.expire(self._now_us(), self.idle_us)
                     self._classify(pending)
                     pending = []
+                    self._check_volume()
                     self._status()
                     next_tick = time.monotonic() + TICK
         except KeyboardInterrupt:
@@ -123,7 +142,10 @@ class LiveCapture:
                 except queue.Empty:
                     break
                 if pkt:
+                    self.last_ts = pkt.ts
+                    self.detector.observe(pkt)
                     pending += self.meter.process(pkt)
+            self._check_volume()
             self._classify(pending + self.meter.flush())
             self._status()
             print()
