@@ -29,6 +29,7 @@ cd sensor && ../.venv/bin/python -m pytest   # testes
 - Flags TCP do CIC-IDS-2017 estao erradas: ficam fora dos modelos (`FLAG_COLUMNS` em `sensor/src/data.py`).
 - O extrator precisa gerar todas as features candidatas (o retreino pode escolher qualquer uma).
 - Modelos olham um fluxo por vez; floods ficam com `src/volume.py` (conta so SYN sem ACK e UDP, nao respostas).
+  Cada fluxo tem um tipo so: ataque de volume ativo vence o modelo (`detected_by`, `model_type` na tabela flows).
 
 ## Codigo
 - Comentarios e mensagens em portugues **sem acentos** no Python; nomes de funcoes em ingles; seguir o estilo do arquivo.

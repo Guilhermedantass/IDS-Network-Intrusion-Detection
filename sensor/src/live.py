@@ -38,15 +38,18 @@ def ask_sudo():
 
 
 def print_alerts(rows):
-    """Agrupa os ataques do lote por tipo/origem/destino e imprime uma linha por grupo."""
-    attacks = rows[rows['is_attack'] == 1]
+    """Agrupa os ataques do lote por tipo/origem/destino e imprime uma linha por grupo.
+
+    Fluxos de ataques de volume ficam de fora: o alerta deles ja saiu em print_volume_alerts.
+    """
+    attacks = rows[rows['detected_by'] == 'modelo']
     if attacks.empty:
         return
     hora = datetime.now().strftime('%H:%M:%S')
     grupos = attacks.groupby(['attack_type', 'Src IP', 'Dst IP']).agg(
         fluxos=('attack_prob', 'size'), portas=('Dst Port', 'nunique'), prob=('attack_prob', 'mean'))
     for (tipo, src, dst), g in grupos.iterrows():
-        print(f'\r[{hora}] ALERTA {tipo:<12} {src} -> {dst}  '
+        print(f'\r[{hora}] ALERTA {tipo:<12} {src} -> {dst}  [modelo] '
               f'{int(g["fluxos"])} fluxo(s), {int(g["portas"])} porta(s), prob {g["prob"]:.2f}' + ' ' * 10)
 
 
@@ -56,7 +59,7 @@ def print_volume_alerts(alerts):
     for a in alerts:
         origem = a['src_ip'] or f'{a["sources"]} origens'
         extra = f', {a["ports"]} porta(s)' if a['ports'] else ''
-        print(f'\r[{hora}] VOLUME {a["type"]:<12} {origem} -> {a["dst_ip"]}  '
+        print(f'\r[{hora}] ALERTA {a["type"]:<12} {origem} -> {a["dst_ip"]}  [volume] '
               f'{a["rate"]:,.0f} pacotes/s{extra}' + ' ' * 10)
 
 
@@ -91,7 +94,6 @@ class LiveCapture:
     def _status(self):
         d = self.detector
         print(f'\r[ao vivo] fluxos: {d.total:,} | ataques: {d.attacks:,} | '
-              f'alertas de volume: {d.volume_counts.total():,} | '
               f'fluxos abertos: {len(self.meter.flows):,}   ', end='', flush=True)
 
     def run(self, stop=None, duration=None):
