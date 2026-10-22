@@ -27,43 +27,45 @@ Este repositório implementa um pipeline de análise de tráfego de rede para de
 
 ```
 IDS-Network-Intrusion-Detection/
-├── datas/                          # Dados do projeto (não versionados)
-│   ├── raw/                        # CSVs originais do CIC-IDS-2017
-│   └── processed/                  # Dados tratados e preparados para treino
-├── notebooks/                      # Jupyter Notebooks de análise
-│   ├── 02_selecao_features.ipynb   # Seleção de features dos dois modelos
-│   ├── 03_modelo_binario.ipynb     # Modelo 1: BENIGN x Ataque
-│   ├── 04_modelo_tipo_ataque.ipynb # Modelo 2: tipo de ataque
-│   ├── 05_pipeline_completo.ipynb  # Avaliação dos dois modelos juntos
-│   ├── notebook_portscan.ipynb     # Port Scan
-│   ├── notebook_ddos.ipynb         # DDoS
-│   ├── notebook_ddos_PCA.ipynb     # DDoS com redução de dimensionalidade (PCA)
-│   ├── notebook_web.ipynb          # Ataques Web (Brute Force, XSS, SQL Injection)
-│   └── archive/                    # Notebooks antigos, mantidos só como histórico
-├── results/
-│   └── modelos/                    # Modelos finais (.ubj) e metadados (.json)
-├── src/
-│   ├── data.py                     # Carregamento, limpeza e divisão treino/teste
-│   ├── features.py                 # Seleção de features (SHAP, correlação, curva top-k)
-│   ├── pipeline.py                 # Detecção em duas etapas (IDSPipeline)
-│   ├── flows.py                    # Pacotes -> fluxos com as features do CIC-IDS-2017
-│   ├── storage.py                  # Banco SQLite das detecções
-│   ├── detect.py                   # Classificação de lotes de fluxos e gravação no SQLite
-│   ├── live.py                     # Captura ao vivo com tcpdump
-│   ├── report.py                   # Resumo das execuções
-│   ├── ids.py                      # Linha de comando (./ids)
-│   └── slice_pcap.py               # Recorta uma janela de tempo de um PCAP
-├── tests/                          # Testes (pytest)
-├── ids                             # Atalho: ./ids <comando>
-├── README.md
-└── requirements.txt
+├── sensor/                             # Python: captura, ML e detecção
+│   ├── datas/                          # Dados do projeto (não versionados)
+│   │   ├── raw/                        # CSVs originais do CIC-IDS-2017
+│   │   └── processed/                  # Dados tratados e preparados para treino
+│   ├── notebooks/                      # Jupyter Notebooks de análise
+│   │   ├── 02_selecao_features.ipynb   # Seleção de features dos dois modelos
+│   │   ├── 03_modelo_binario.ipynb     # Modelo 1: BENIGN x Ataque
+│   │   ├── 04_modelo_tipo_ataque.ipynb # Modelo 2: tipo de ataque
+│   │   ├── 05_pipeline_completo.ipynb  # Avaliação dos dois modelos juntos
+│   │   ├── notebook_portscan.ipynb     # Port Scan
+│   │   ├── notebook_ddos.ipynb         # DDoS
+│   │   ├── notebook_ddos_PCA.ipynb     # DDoS com redução de dimensionalidade (PCA)
+│   │   ├── notebook_web.ipynb          # Ataques Web (Brute Force, XSS, SQL Injection)
+│   │   └── archive/                    # Notebooks antigos, mantidos só como histórico
+│   ├── results/
+│   │   └── modelos/                    # Modelos finais (.ubj) e metadados (.json)
+│   ├── src/
+│   │   ├── data.py                     # Carregamento, limpeza e divisão treino/teste
+│   │   ├── features.py                 # Seleção de features (SHAP, correlação, curva top-k)
+│   │   ├── pipeline.py                 # Detecção em duas etapas (IDSPipeline)
+│   │   ├── flows.py                    # Pacotes -> fluxos com as features do CIC-IDS-2017
+│   │   ├── storage.py                  # Banco SQLite das detecções
+│   │   ├── detect.py                   # Classificação de lotes de fluxos e gravação no SQLite
+│   │   ├── live.py                     # Captura ao vivo com tcpdump
+│   │   ├── report.py                   # Resumo das execuções
+│   │   ├── ids.py                      # Linha de comando (./ids)
+│   │   └── slice_pcap.py               # Recorta uma janela de tempo de um PCAP
+│   ├── tests/                          # Testes (pytest)
+│   ├── requirements.txt
+│   └── pytest.ini
+├── ids                                 # Atalho: ./ids <comando> (roda o sensor)
+└── README.md
 ```
 
 ## Dados
 
-Os CSVs do [CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html) devem ser colocados em `datas/raw/` com os nomes abaixo:
+Os CSVs do [CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html) devem ser colocados em `sensor/datas/raw/` com os nomes abaixo:
 
-| Arquivo esperado em `datas/raw/` | Arquivo original do CIC-IDS-2017 |
+| Arquivo esperado em `sensor/datas/raw/` | Arquivo original do CIC-IDS-2017 |
 | --- | --- |
 | `PortScan.csv` | `Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv` |
 | `DDos.csv` | `Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv` |
@@ -73,7 +75,7 @@ Os notebooks 02 a 05 usam os três arquivos juntos; os notebooks `notebook_*.ipy
 
 Os nomes diferenciam maiúsculas de minúsculas no Linux (`DDos.csv` ≠ `DDoS.csv`).
 
-Os notebooks leem os dados a partir de `../datas`, então devem ser executados de dentro da pasta `notebooks/`.
+Os notebooks leem os dados a partir de `../datas`, então devem ser executados de dentro da pasta `sensor/notebooks/`.
 
 ## Como Executar
 
@@ -88,13 +90,14 @@ Os notebooks leem os dados a partir de `../datas`, então devem ser executados d
    python -m venv .venv
    source .venv/bin/activate        # Linux / macOS
    # .\.venv\Scripts\activate       # Windows
-   pip install -r requirements.txt
+   pip install -r sensor/requirements.txt
    ```
 
-3. Coloque os CSVs em `datas/raw/` (veja a seção **Dados**).
+3. Coloque os CSVs em `sensor/datas/raw/` (veja a seção **Dados**).
 
-4. Abra o Jupyter e execute os notebooks em `notebooks/`:
+4. Abra o Jupyter e execute os notebooks em `sensor/notebooks/`:
    ```bash
+   cd sensor/notebooks
    jupyter notebook
    ```
 
@@ -144,7 +147,7 @@ Tudo passa pelo comando `./ids` (usa o Python do `.venv` automaticamente):
 ```
 
 `ao-vivo` e `teste-nmap` capturam com `tcpdump`, por isso pedem a senha do `sudo`. Os resultados ficam em
-`results/ids.db` (use `--db` para outro arquivo).
+`sensor/results/ids.db` (use `--db` para outro arquivo).
 
 ```
 tcpdump / PCAP -> src/flows.py (features de fluxo) -> IDSPipeline -> SQLite -> alertas e resumo
@@ -153,7 +156,7 @@ tcpdump / PCAP -> src/flows.py (features de fluxo) -> IDSPipeline -> SQLite -> a
 No modo ao vivo, um fluxo também é encerrado após 10 s sem pacotes (o CICFlowMeter original só encerra no
 FIN ou após 120 s); sem isso, um port scan só geraria alerta 2 minutos depois.
 
-O extrator de fluxos (`src/flows.py`) reproduz a semântica do CICFlowMeter em Java que gerou o CIC-IDS-2017,
+O extrator de fluxos (`sensor/src/flows.py`) reproduz a semântica do CICFlowMeter em Java que gerou o CIC-IDS-2017,
 incluindo os bugs dele, conferidos contra os CSVs:
 
 - tempos em microssegundos, tamanho = payload, desvio padrão amostral, fim do fluxo no primeiro FIN ou após 120 s;
@@ -169,7 +172,7 @@ features ficam salvas em JSON só para os fluxos classificados como ataque).
 ### PCAPs do CIC-IDS-2017
 
 Os PCAPs originais (página do dataset, pasta `PCAPs/`, exige cadastro) têm vários GB por dia. Para recortar só a
-janela do ataque, inclusive durante o download:
+janela do ataque, inclusive durante o download (de dentro de `sensor/`):
 
 ```bash
 curl -L <url-do-pcap> | python -m src.slice_pcap - datas/raw/recorte.pcap \
@@ -179,7 +182,7 @@ curl -L <url-do-pcap> | python -m src.slice_pcap - datas/raw/recorte.pcap \
 ## Testes
 
 ```bash
-pytest
+cd sensor && ../.venv/bin/python -m pytest
 ```
 
 ## Notebooks por Ataque (primeira etapa)
@@ -197,10 +200,10 @@ No `notebook_ddos_PCA.ipynb` os dados são padronizados (`StandardScaler`) e red
 
 ## Boas Práticas
 
-- Não comite dados brutos no repositório (`datas/` está no `.gitignore`). De `results/modelos/` só os modelos finais (`.ubj`) e metadados (`.json`) são versionados.
-- Use `datas/processed/` apenas para dados preparados.
+- Não comite dados brutos no repositório (`sensor/datas/` está no `.gitignore`). De `sensor/results/modelos/` só os modelos finais (`.ubj`) e metadados (`.json`) são versionados.
+- Use `sensor/datas/processed/` apenas para dados preparados.
 - Documente cada experimento nos notebooks.
-- Código compartilhado entre notebooks (limpeza, avaliação) deve ir para `src/`.
+- Código compartilhado entre notebooks (limpeza, avaliação) deve ir para `sensor/src/`.
 
 ## Contato
 

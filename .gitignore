@@ -10,20 +10,20 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Dados (CIC-IDS-2017 e derivados sao grandes demais para o git)
-datas/raw/*
-datas/processed/*
-!datas/**/.gitkeep
+sensor/datas/raw/*
+sensor/datas/processed/*
+!sensor/datas/**/.gitkeep
 
 # Modelos treinados: so os modelos finais do XGBoost (.ubj) e seus metadados (.json) sao versionados
-results/modelos/*
-!results/modelos/.gitkeep
-!results/modelos/*.ubj
-!results/modelos/*.json
+sensor/results/modelos/*
+!sensor/results/modelos/.gitkeep
+!sensor/results/modelos/*.ubj
+!sensor/results/modelos/*.json
 *.pkl
 *.joblib
 
 # Banco de deteccoes e capturas
-results/*.db
+sensor/results/*.db
 *.pcap
 *.pcapng
 
