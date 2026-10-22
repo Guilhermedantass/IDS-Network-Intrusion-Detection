@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: ids-api
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate      # quem cria e altera as tabelas e o Flyway (db/migration); o Hibernate so confere
+  docker:
+    compose:
+      lifecycle-management: start-only   # ao parar a API, o banco continua rodando
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
