@@ -3,8 +3,10 @@ package dev.guilhermedantas.ids.incident;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,14 @@ public class IncidentService {
     public IncidentService(IncidentRepository repository, ApplicationEventPublisher events) {
         this.repository = repository;
         this.events = events;
+    }
+
+    /** Os incidentes mais recentes (pelo ultimo alerta), para o dashboard montar a lista ao abrir. */
+    @Transactional(readOnly = true)
+    public List<IncidentMessage> recent(int limit) {
+        return repository.findAllByOrderByLastSeenAtDesc(Limit.of(limit)).stream()
+                .map(IncidentMessage::from)
+                .toList();
     }
 
     /**
