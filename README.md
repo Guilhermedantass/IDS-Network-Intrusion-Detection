@@ -51,6 +51,7 @@ IDS-Network-Intrusion-Detection/
 │   │   ├── storage.py                  # Banco SQLite das detecções
 │   │   ├── detect.py                   # Classificação de lotes de fluxos e gravação no SQLite
 │   │   ├── volume.py                   # Detecção por volume (floods, DDoS, scans)
+│   │   ├── alerts.py                   # Alertas no formato da API e envio por HTTP
 │   │   ├── live.py                     # Captura ao vivo com tcpdump
 │   │   ├── report.py                   # Resumo das execuções
 │   │   ├── ids.py                      # Linha de comando (./ids)
@@ -149,6 +150,9 @@ Tudo passa pelo comando `./ids` (usa o Python do `.venv` automaticamente):
 ./ids resumo --lista          # todas as execuções
 ```
 
+Com `--api http://localhost:8080` (ou a variável `IDS_API_URL`), qualquer comando também envia os alertas para a
+API; veja [Envio de alertas para a API](#envio-de-alertas-para-a-api).
+
 `ao-vivo`, `teste-nmap` e `teste-flood` capturam com `tcpdump`, por isso pedem a senha do `sudo`. Os resultados ficam em
 `sensor/results/ids.db` (use `--db` para outro arquivo).
 
@@ -195,6 +199,31 @@ O pacote `cicflowmeter` do PyPI não é usado porque calcula várias features em
 O banco tem três tabelas: `runs` (uma por execução), `flows` (um fluxo por linha, com a previsão; as
 features ficam salvas em JSON só para os fluxos classificados como ataque) e `volume_alerts` (alertas da
 detecção por volume).
+
+### Envio de alertas para a API
+
+Com `--api URL`, o sensor manda os alertas em lotes para `POST URL/api/alerts`. Um alerta resume um ataque (tipo +
+origem + destino), e não cada fluxo, senão um flood viraria milhares de requisições. O envio roda em uma thread
+separada: se a API estiver fora do ar, os alertas ficam numa fila e são reenviados com espera crescente (até 30 s);
+a captura nunca para por causa disso. `--sensor NOME` (ou `IDS_SENSOR`) identifica a máquina, para vários sensores
+usarem a mesma API.
+
+```json
+{
+  "sensor": "pc-casa",
+  "alerts": [
+    {
+      "ts": "2026-10-22T13:33:19Z", "type": "SYN Flood", "detectedBy": "volume",
+      "srcIp": "127.0.0.1", "dstIp": "127.0.0.1", "dstPort": 9, "protocol": "TCP",
+      "flows": null, "packets": 1800, "rate": 180.0, "ports": 1, "sources": null, "probability": null
+    }
+  ]
+}
+```
+
+`flows` e `probability` vêm do modelo; `packets`, `rate` e `sources` vêm da detecção por volume; o que não se
+aplica vai como `null`. Respostas 2xx contam como entregues; 4xx descartam o lote (o alerta foi recusado e reenviar
+não resolve); 5xx ou falha de conexão fazem o lote voltar para a fila.
 
 ### PCAPs do CIC-IDS-2017
 

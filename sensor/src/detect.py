@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from . import storage
+from .alerts import model_alerts, volume_alerts
 from .data import BENIGN
 from .flows import FlowMeter, read_pcap
 from .pipeline import IDSPipeline
@@ -25,13 +26,15 @@ def model_features(ids):
 class Detector:
     """Classifica lotes de fluxos com o IDSPipeline e grava tudo em uma execucao (run) do banco.
 
-    Tambem soma os pacotes na deteccao por volume (`observe` + `check_volume`).
+    Tambem soma os pacotes na deteccao por volume (`observe` + `check_volume`) e,
+    com um `sender` (src.alerts.AlertSender), manda os alertas para a API.
     """
 
-    def __init__(self, source, db_path=storage.DB_PATH, volume_limits=None):
+    def __init__(self, source, db_path=storage.DB_PATH, volume_limits=None, sender=None):
         self.ids = IDSPipeline.load()
         self.features = model_features(self.ids)
         self.volume = VolumeDetector(volume_limits)
+        self.sender = sender
         self.conn = storage.connect(db_path)
         self.run_id = storage.start_run(self.conn, source)
         self.counts = Counter()
@@ -68,7 +71,10 @@ class Detector:
         pred.loc[hit, 'is_attack'] = 1
         storage.save_flows(self.conn, self.run_id, df, pred, self.features)
         self.counts.update(pred['attack_type'])
-        return df.join(pred)
+        rows = df.join(pred)
+        if self.sender:
+            self.sender.send(model_alerts(rows))
+        return rows
 
     def observe(self, pkt):
         self.volume.add(pkt)
@@ -83,6 +89,8 @@ class Detector:
         if alerts:
             storage.save_volume_alerts(self.conn, self.run_id, alerts)
             self.volume_counts.update(a['type'] for a in alerts)
+            if self.sender:
+                self.sender.send(volume_alerts(alerts))
         changed = 0
         for attack in self.volume.active.values():
             keep = VOLUME_TYPES[:VOLUME_TYPES.index(attack.type)]
@@ -97,12 +105,12 @@ class Detector:
         self.conn.close()
 
 
-def run(pcap, db_path=storage.DB_PATH, batch_size=5000):
+def run(pcap, db_path=storage.DB_PATH, batch_size=5000, sender=None):
     """Analisa um arquivo PCAP inteiro; devolve o id da execucao no banco.
 
     O relogio e o dos pacotes: a janela de volume e checada a cada segundo da captura.
     """
-    detector = Detector(pcap, db_path)
+    detector = Detector(pcap, db_path, sender=sender)
     meter = FlowMeter()
     inicio = time.perf_counter()
     batch = []
