@@ -17,3 +17,6 @@ management:
     web:
       exposure:
         include: health,info
+
+ids:
+  dashboard-origin: http://localhost:4200   # Angular em desenvolvimento (ng serve); unica origem aceita no /ws
