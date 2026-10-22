@@ -11,6 +11,10 @@ Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
 - `sensor/notebooks/02..05` treino (gerados e executados); `notebook_*.ipynb` e `archive/` sao historico
 - `sensor/results/modelos/*.ubj|*.json` modelos versionados no git; `sensor/datas/raw/` CSVs (fora do git)
 
+`api/` (Java 25 + Spring Boot 4.1.1, pacote `dev.guilhermedantas.ids`, Maven via `./mvnw`): esqueleto pronto;
+`alert/` tem TODOs para o usuario (etapa 1: receber POST /api/alerts). Tabela `alerts` em `db/migration/V1`.
+Postgres de dev no `api/compose.yaml` (sobe sozinho com spring-boot-docker-compose). Roteiro em `api/README.md`.
+
 ## Comandos
 ```bash
 ./ids ao-vivo [-i lo]        # captura ao vivo (sudo); trafego para o proprio PC passa pela interface lo
@@ -47,6 +51,6 @@ cd sensor && ../.venv/bin/python -m pytest   # testes
 
 ## Proximos passos (arquitetura planejada)
 `sensor/` (Python: captura, ML, deteccao por volume, envia alertas por HTTP, API de controle) ->
-`api/` (Java 21 + Spring Boot 3, PostgreSQL + Flyway, incidentes, WebSocket STOMP, Spring AI + Ollama) ->
+`api/` (Java 25 + Spring Boot 4.1, PostgreSQL + Flyway, incidentes, WebSocket STOMP, Spring AI + Ollama) ->
 `web/` (Angular 22, dashboard/ao vivo/incidentes/controle do sensor) -> `docker compose` (instalavel; captura
 ao vivo so em host Linux). Ordem: sensor -> API -> Angular -> LLM -> Docker.

@@ -1,0 +1,16 @@
+# Banco da API em desenvolvimento. Nao precisa subir na mao: ao rodar ./mvnw spring-boot:run,
+# o Spring Boot (dependencia spring-boot-docker-compose) sobe este arquivo e se conecta sozinho.
+services:
+  postgres:
+    image: 'postgres:18'
+    environment:
+      POSTGRES_DB: ids
+      POSTGRES_USER: ids
+      POSTGRES_PASSWORD: ids
+    ports:
+      - '5432:5432'
+    volumes:
+      - ids-pgdata:/var/lib/postgresql
+
+volumes:
+  ids-pgdata:

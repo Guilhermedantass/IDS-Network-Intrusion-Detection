@@ -22,6 +22,7 @@ Este repositório implementa um pipeline de análise de tráfego de rede para de
 - matplotlib
 - seaborn
 - Jupyter Notebook
+- Java 25 + Spring Boot 4.1 (API), PostgreSQL 18 + Flyway
 
 ## Estrutura do Repositório
 
@@ -59,6 +60,7 @@ IDS-Network-Intrusion-Detection/
 │   ├── tests/                          # Testes (pytest)
 │   ├── requirements.txt
 │   └── pytest.ini
+├── api/                                # Java/Spring Boot: recebe alertas (ver api/README.md)
 ├── ids                                 # Atalho: ./ids <comando> (roda o sensor)
 └── README.md
 ```
