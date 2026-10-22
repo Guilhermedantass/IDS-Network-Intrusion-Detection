@@ -1,0 +1,14 @@
+<a class="brand" routerLink="/">
+  <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+    <path d="M10 1.5 17 4.2v5.3c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V4.2Z" />
+  </svg>
+  <span>IDS</span>
+</a>
+
+<nav aria-label="Principal">
+  <a routerLink="/" routerLinkActive="current" [routerLinkActiveOptions]="{ exact: true }">Incidentes</a>
+  <span class="soon" aria-disabled="true">Visão geral <small>em breve</small></span>
+  <span class="soon" aria-disabled="true">Controle do sensor <small>em breve</small></span>
+</nav>
+
+<p class="connection" [class]="store.status()">{{ statusLabel[store.status()] }}</p>
