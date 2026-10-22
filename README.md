@@ -165,13 +165,19 @@ parecem normais. O `sensor/src/volume.py` conta os pacotes em janelas de 10 s e 
 
 | Alerta | Regra (padrão) |
 |---|---|
-| SYN Flood | uma origem abre mais de 100 conexões/s (SYN sem ACK) com o mesmo destino |
-| DDoS | um destino recebe SYN de 20 ou mais origens, somando mais de 200/s |
-| UDP Flood | uma origem manda mais de 2.000 pacotes UDP/s para um destino, com menos de 10% de resposta |
+| DDoS | um destino recebe SYN de 20 ou mais origens (cada uma com 5/s ou mais), somando mais de 200/s |
+| SYN Flood | uma origem abre mais de 100 conexões/s (SYN sem ACK) com a mesma porta de um destino |
 | PortScan | uma origem tenta conexão em 100 ou mais portas do mesmo destino |
+| UDP Flood | uma origem manda mais de 2.000 pacotes UDP/s para um destino, com menos de 10% de resposta |
 
 Só pacotes que iniciam conexão contam para SYN Flood, DDoS e PortScan, porque as respostas de um servidor vão
 para muitas portas do cliente e pareceriam um scan. O mesmo alerta não se repete por 30 s.
+
+**Um tipo só por fluxo.** Quando um ataque de volume está ativo, os fluxos que fazem parte dele recebem o tipo do
+volume, inclusive os que já tinham sido gravados antes do alerta. Sem isso, o mesmo ataque teria dois nomes: o
+modelo chama cada conexão de um SYN flood de `PortScan` (é um SYN respondido com RST, igual a um scan) e um UDP
+flood de `BENIGN` (o CIC-IDS-2017 não tem ataques UDP). O tipo original do modelo fica na coluna `model_type` e a
+coluna `detected_by` diz quem detectou: `modelo`, `volume` ou `modelo+volume`.
 
 No modo ao vivo, um fluxo também é encerrado após 10 s sem pacotes (o CICFlowMeter original só encerra no
 FIN ou após 120 s); sem isso, um port scan só geraria alerta 2 minutos depois.

@@ -1,4 +1,10 @@
-"""Classificacao de fluxos e gravacao no SQLite, usada pelo modo arquivo e pelo ao vivo."""
+"""Classificacao de fluxos e gravacao no SQLite, usada pelo modo arquivo e pelo ao vivo.
+
+Cada fluxo recebe um tipo so. Se ele faz parte de um ataque de volume ativo
+(src.volume), o tipo do volume vence o do modelo: o modelo olha um fluxo por vez
+e chama um SYN flood de PortScan e um UDP flood de BENIGN. O tipo do modelo fica
+em `model_type` e `detected_by` diz quem detectou (modelo, volume ou os dois).
+"""
 import time
 from collections import Counter
 
@@ -6,9 +12,10 @@ import numpy as np
 import pandas as pd
 
 from . import storage
+from .data import BENIGN
 from .flows import FlowMeter, read_pcap
 from .pipeline import IDSPipeline
-from .volume import VolumeDetector
+from .volume import PROTOCOL, VOLUME_TYPES, VolumeDetector
 
 
 def model_features(ids):
@@ -36,7 +43,7 @@ class Detector:
 
     @property
     def attacks(self):
-        return self.total - self.counts['BENIGN']
+        return self.total - self.counts[BENIGN]
 
     def process(self, flows):
         """Classifica e grava uma lista de fluxos (dicts de src.flows).
@@ -49,6 +56,16 @@ class Detector:
             return None
         df = pd.DataFrame(flows)
         pred = self.ids.predict(df[self.features].replace([np.inf, -np.inf], np.nan))
+        volume = pd.Series([self.volume.match(*key) for key in zip(
+                                df['Src IP'], df['Dst IP'], df['Protocol'], df['Dst Port'], df['Timestamp'])],
+                           index=pred.index, dtype=object)
+        hit, model = volume.notna(), pred['is_attack'] == 1
+        pred['model_type'] = pred['attack_type']
+        pred['detected_by'] = pd.Series(None, index=pred.index, dtype=object)
+        pred.loc[model, 'detected_by'] = 'modelo'
+        pred.loc[hit, 'detected_by'] = np.where(model[hit], 'modelo+volume', 'volume')
+        pred.loc[hit, 'attack_type'] = volume[hit]
+        pred.loc[hit, 'is_attack'] = 1
         storage.save_flows(self.conn, self.run_id, df, pred, self.features)
         self.counts.update(pred['attack_type'])
         return df.join(pred)
@@ -57,11 +74,22 @@ class Detector:
         self.volume.add(pkt)
 
     def check_volume(self, now_us):
-        """Checa a janela de volume que termina em `now_us`; grava e devolve os alertas."""
+        """Checa a janela de volume que termina em `now_us`; grava e devolve os alertas novos.
+
+        Fluxos de um ataque ativo que ja tinham sido gravados (encerraram antes do
+        alerta) sao reclassificados no banco.
+        """
         alerts = self.volume.check(now_us)
         if alerts:
             storage.save_volume_alerts(self.conn, self.run_id, alerts)
             self.volume_counts.update(a['type'] for a in alerts)
+        changed = 0
+        for attack in self.volume.active.values():
+            keep = VOLUME_TYPES[:VOLUME_TYPES.index(attack.type)]
+            changed += storage.relabel_flows(self.conn, self.run_id, attack, PROTOCOL[attack.type], keep)
+        if changed:
+            self.counts = Counter(dict(self.conn.execute(
+                'SELECT attack_type, COUNT(*) FROM flows WHERE run_id = ? GROUP BY 1', (self.run_id,))))
         return alerts
 
     def close(self):

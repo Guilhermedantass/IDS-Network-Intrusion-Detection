@@ -28,8 +28,10 @@ CREATE TABLE IF NOT EXISTS flows (
     fwd_bytes       INTEGER, bwd_bytes   INTEGER,
     attack_prob     REAL NOT NULL,
     is_attack       INTEGER NOT NULL,
-    attack_type     TEXT NOT NULL,
+    attack_type     TEXT NOT NULL,       -- tipo final (modelo ou volume, ver src.detect)
     type_confidence REAL,
+    model_type      TEXT,                -- tipo dado pelo modelo, antes da deteccao por volume
+    detected_by     TEXT,                -- modelo, volume, modelo+volume (NULL se BENIGN)
     features        TEXT                 -- JSON com as features, so para ataques
 );
 
@@ -54,11 +56,20 @@ CREATE INDEX IF NOT EXISTS idx_volume_run ON volume_alerts(run_id, ts);
 '''
 
 
+# colunas adicionadas depois da primeira versao do banco
+NEW_COLUMNS = {'flows': {'model_type': 'TEXT', 'detected_by': 'TEXT'}}
+
+
 def connect(db_path=DB_PATH):
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
+    for table, columns in NEW_COLUMNS.items():
+        existing = {row[1] for row in conn.execute(f'PRAGMA table_info({table})')}
+        for name, kind in columns.items():
+            if name not in existing:
+                conn.execute(f'ALTER TABLE {table} ADD COLUMN {name} {kind}')
     return conn
 
 
@@ -96,14 +107,42 @@ def save_flows(conn, run_id, flows, predictions, feature_columns):
             int(f['Total Length of Fwd Packets']), int(f['Total Length of Bwd Packets']),
             float(p['attack_prob']), int(p['is_attack']), p['attack_type'],
             None if p['type_confidence'] != p['type_confidence'] else float(p['type_confidence']),
-            features,
+            p['model_type'], p['detected_by'], features,
         ))
     conn.executemany('''
         INSERT INTO flows (run_id, ts, duration_us, src_ip, src_port, dst_ip, dst_port, protocol,
                            fwd_packets, bwd_packets, fwd_bytes, bwd_bytes,
-                           attack_prob, is_attack, attack_type, type_confidence, features)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', rows)
+                           attack_prob, is_attack, attack_type, type_confidence,
+                           model_type, detected_by, features)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', rows)
     conn.commit()
+
+
+def relabel_flows(conn, run_id, attack, protocol, keep=()):
+    """Marca com o tipo de um ataque de volume (src.volume.Attack) os fluxos ja gravados que fazem parte dele.
+
+    Fluxos ja marcados com um tipo de `keep` (ataques de volume de maior prioridade) nao mudam.
+    """
+    skip = (attack.type, *keep)
+    where = (f'run_id = ? AND protocol = ? AND dst_ip = ? AND ts BETWEEN ? AND ? '
+             f'AND attack_type NOT IN ({",".join("?" * len(skip))})')
+    params = [run_id, protocol, attack.dst, attack.start, attack.end, *skip]
+    if attack.src is not None:
+        where += ' AND src_ip = ?'
+        params.append(attack.src)
+    else:
+        where += f' AND src_ip IN ({",".join("?" * len(attack.sources))})'
+        params += sorted(attack.sources)
+    if attack.ports:
+        where += f' AND dst_port IN ({",".join("?" * len(attack.ports))})'
+        params += sorted(attack.ports)
+    cur = conn.execute(f'''
+        UPDATE flows SET attack_type = ?, is_attack = 1,
+            detected_by = CASE WHEN model_type IS NOT NULL AND model_type != 'BENIGN'
+                               THEN 'modelo+volume' ELSE 'volume' END
+        WHERE {where}''', [attack.type] + params)
+    conn.commit()
+    return cur.rowcount
 
 
 def save_volume_alerts(conn, run_id, alerts):
