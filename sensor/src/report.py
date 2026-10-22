@@ -45,12 +45,24 @@ def summary(run_id=None, db_path=storage.DB_PATH, top=10):
                MIN(ts), MAX(ts), AVG(attack_prob)
         FROM flows WHERE run_id = ? AND is_attack = 1
         GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT ?''', (run_id, top)).fetchall()
+    volume = conn.execute('''
+        SELECT type, COALESCE(src_ip, sources || ' origens'), dst_ip, COUNT(*), MAX(rate),
+               MAX(ports), MIN(ts), MAX(ts)
+        FROM volume_alerts WHERE run_id = ?
+        GROUP BY 1, 2, 3 ORDER BY 7 LIMIT ?''', (run_id, top)).fetchall()
     conn.close()
-    if not grupos:
+    if not grupos and not volume:
         print('\n    Nenhum ataque detectado.')
         return
-    print('\n    Principais origens de ataque:')
-    print(f'    {"tipo":<13} {"origem":<16} {"destino":<16} {"fluxos":>7} {"portas":>7}  {"prob":>5}  periodo')
-    for tipo, src, dst, n, portas, ini, fim, prob in grupos:
-        print(f'    {tipo:<13} {src:<16} {dst:<16} {n:>7,} {portas:>7,}  {prob:>5.2f}  '
-              f'{_hora(ini)} -> {_hora(fim)[-8:]}')
+    if grupos:
+        print('\n    Principais origens de ataque (modelos, um fluxo por vez):')
+        print(f'    {"tipo":<13} {"origem":<16} {"destino":<16} {"fluxos":>7} {"portas":>7}  {"prob":>5}  periodo')
+        for tipo, src, dst, n, portas, ini, fim, prob in grupos:
+            print(f'    {tipo:<13} {src:<16} {dst:<16} {n:>7,} {portas:>7,}  {prob:>5.2f}  '
+                  f'{_hora(ini)} -> {_hora(fim)[-8:]}')
+    if volume:
+        print('\n    Alertas de volume (trafego somado):')
+        print(f'    {"tipo":<13} {"origem":<16} {"destino":<16} {"alertas":>7} {"pico/s":>9} {"portas":>7}  periodo')
+        for tipo, src, dst, n, rate, portas, ini, fim in volume:
+            print(f'    {tipo:<13} {src:<16} {dst:<16} {n:>7,} {rate:>9,.0f} {portas or "-":>7}  '
+                  f'{_hora(ini)} -> {_hora(fim)[-8:]}')
