@@ -2,11 +2,15 @@ package dev.guilhermedantas.ids.alert;
 
 import java.time.Instant;
 
+import dev.guilhermedantas.ids.incident.Incident;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
@@ -44,11 +48,16 @@ public class Alert {
     private Integer sources;
     private Double probability;
 
+    @ManyToOne(fetch = FetchType.LAZY)                    // varios alertas -> um incidente
+    @JoinColumn(name = "incident_id")
+    private Incident incident;
+
     protected Alert() {   // exigido pelo JPA
     }
 
-    static Alert from(String sensor, AlertRequest req) {
+    static Alert from(String sensor, AlertRequest req, Incident incident) {
         Alert a = new Alert();
+        a.incident = incident;
         a.sensor = sensor;
         a.ts = req.ts();
         a.type = req.type();
