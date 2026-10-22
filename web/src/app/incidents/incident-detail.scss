@@ -1,0 +1,52 @@
+.crumbs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.crumbs a {
+  color: var(--muted);
+}
+
+.crumbs a:hover {
+  color: var(--ink);
+}
+
+header p {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 0;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 40px;
+  margin: 28px 0 36px;
+  padding: 18px 0;
+  border-block: 1px solid var(--line);
+}
+
+.facts dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+h2 {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+a {
+  color: var(--ink);
+}

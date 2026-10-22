@@ -21,3 +21,19 @@ export function upsertIncident(list: readonly Incident[], incoming: Incident): I
 export function isActive(incident: Incident, nowMs: number): boolean {
   return nowMs - Date.parse(incident.lastSeenAt) <= INCIDENT_GAP_MS;
 }
+
+/** Duracao legivel: '45 s', '2 min 05 s', '1 h 03 min'. */
+export function formatDuration(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const min = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (h > 0) {
+    return `${h} h ${pad(min)} min`;
+  }
+  if (min > 0) {
+    return `${min} min ${pad(s)} s`;
+  }
+  return `${s} s`;
+}
