@@ -55,6 +55,19 @@ public class Alert {
     protected Alert() {   // exigido pelo JPA
     }
 
+    public String getSrcIp() {
+        return srcIp;
+    }
+
+    public String getDstIp() {
+        return dstIp;
+    }
+
+    /** O id do incidente sem carregar o incidente: o Hibernate ja sabe o id pela coluna incident_id. */
+    public Long getIncidentId() {
+        return incident == null ? null : incident.getId();
+    }
+
     static Alert from(String sensor, AlertRequest req, Incident incident) {
         Alert a = new Alert();
         a.incident = incident;

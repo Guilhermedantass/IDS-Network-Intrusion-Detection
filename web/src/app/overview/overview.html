@@ -1,0 +1,190 @@
+<h1 class="visually-hidden">Visão geral</h1>
+
+<!-- a manchete: a resposta para "estou sendo atacado agora?" -->
+<section class="verdict" [class.alarm]="activeCount() > 0" aria-live="polite">
+  <p class="headline">
+    @switch (activeCount()) {
+      @case (0) { Nenhum ataque acontecendo agora }
+      @case (1) { <a routerLink="/incidents">1 ataque acontecendo agora</a> }
+      @default { <a routerLink="/incidents">{{ activeCount() }} ataques acontecendo agora</a> }
+    }
+  </p>
+  <p class="muted">
+    @if (sinceLastAlert(); as ago) {
+      Último alerta há {{ ago }}.
+    } @else {
+      Nenhum alerta recebido ainda.
+    }
+    Resumo das últimas {{ hours }} horas abaixo.
+  </p>
+</section>
+
+@if (failed() && !stats()) {
+  <p class="muted">Não foi possível carregar o resumo. Confira se a API está de pé em localhost:8080.</p>
+} @else if (stats(); as stats) {
+  <dl class="tiles">
+    <div>
+      <dt>Incidentes</dt>
+      <dd>{{ stats.incidents }}</dd>
+    </div>
+    <div>
+      <dt>Alertas</dt>
+      <dd>{{ stats.alerts }}</dd>
+    </div>
+    <div>
+      <dt>Maior taxa</dt>
+      @if (stats.highestRate; as h) {
+        <dd>{{ h.value | number: '1.0-0' }}<span class="unit"> pkt/s</span></dd>
+        <dd class="from"><a [routerLink]="['/incidents', h.incidentId]">{{ h.type }} #{{ h.incidentId }}</a></dd>
+      } @else {
+        <dd>–</dd>
+      }
+    </div>
+    <div>
+      <dt>Incidente mais longo</dt>
+      @if (stats.longest; as l) {
+        <dd>{{ formatDuration(l.value * 1000) }}</dd>
+        <dd class="from"><a [routerLink]="['/incidents', l.incidentId]">{{ l.type }} #{{ l.incidentId }}</a></dd>
+      } @else {
+        <dd>–</dd>
+      }
+    </div>
+  </dl>
+
+  @if (stats.incidents === 0) {
+    <p class="muted empty">Nenhum incidente nas últimas {{ hours }} horas.</p>
+  } @else {
+    <section class="block">
+      <div class="block-head">
+        <h2>Incidentes por hora</h2>
+        <ul class="legend" aria-label="Legenda">
+          @for (t of types(); track t) {
+            <li><span class="swatch" [style.background]="typeColor(t)"></span>{{ t }}</li>
+          }
+        </ul>
+      </div>
+
+      <div class="hours" role="img" [attr.aria-label]="'Incidentes por hora e por tipo nas últimas ' + hours + ' horas. A tabela abaixo tem os valores.'">
+        @for (h of stats.byHour; track h.hour; let i = $index) {
+          <div class="col">
+            @if (i === peakHour()) {
+              <span class="peak">{{ h.incidents }}</span>
+            }
+            <div class="stack" [style.height.%]="(h.incidents / maxPerHour()) * 100">
+              @for (s of segments(h); track s.type) {
+                <div class="seg" [style.flex-grow]="s.count" [style.background]="typeColor(s.type)"></div>
+              }
+            </div>
+            <div class="tip" role="tooltip">
+              <span class="tip-title">{{ h.hour | date: 'HH' }}h às {{ h.hour | date: 'HH' }}h59</span>
+              @for (s of segments(h); track s.type) {
+                <span><span class="swatch" [style.background]="typeColor(s.type)"></span>{{ s.type }}: {{ s.count }}</span>
+              } @empty {
+                <span>Nenhum incidente</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      <div class="hour-axis" aria-hidden="true">
+        @for (h of stats.byHour; track h.hour; let i = $index) {
+          <span>{{ (hours - 1 - i) % 6 === 0 ? (h.hour | date: 'HH') + 'h' : '' }}</span>
+        }
+      </div>
+
+      <details>
+        <summary>Ver em tabela</summary>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                @for (t of types(); track t) {
+                  <th class="num">{{ t }}</th>
+                }
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (h of stats.byHour; track h.hour) {
+                <tr>
+                  <td>{{ h.hour | date: 'dd/MM HH' }}h</td>
+                  @for (t of types(); track t) {
+                    <td class="num">{{ h.byType[t] ?? 0 }}</td>
+                  }
+                  <td class="num">{{ h.incidents }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <div class="pair">
+      <section class="block">
+        <h2>Incidentes recentes</h2>
+        <ul class="recent">
+          @for (i of recent(); track i.id) {
+            @let active = isActive(i, now());
+            <li>
+              <a [routerLink]="['/incidents', i.id]">
+                <span class="state" [class.on]="active">{{ active ? 'Ativo' : 'Encerrado' }}</span>
+                <span class="what">{{ i.type }} em <span class="ip">{{ i.dstIp }}</span></span>
+                <span class="when">{{ i.lastSeenAt | date: 'HH:mm' }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+        <a class="more" routerLink="/incidents">Ver todos os incidentes</a>
+      </section>
+
+      <section class="block">
+        <h2>Por tipo</h2>
+        <ul class="types">
+          @for (t of stats.byType; track t.type) {
+            <li>
+              <span class="label">{{ t.type }}</span>
+              <span class="track">
+                <span class="bar" [style.width.%]="(t.incidents / maxPerType()) * 100" [style.background]="typeColor(t.type)"></span>
+              </span>
+              <span class="value">{{ t.incidents }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    <div class="pair">
+      <section class="block">
+        <h2>Origens que mais atacaram</h2>
+        @if (stats.topSources.length > 0) {
+          <div class="table-wrap"><table class="data ips">
+            <thead><tr><th>IP de origem</th><th class="num">Incidentes</th><th class="num">Alertas</th></tr></thead>
+            <tbody>
+              @for (s of stats.topSources; track s.ip) {
+                <tr><td class="ip">{{ s.ip }}</td><td class="num">{{ s.incidents }}</td><td class="num">{{ s.alerts }}</td></tr>
+              }
+            </tbody>
+          </table></div>
+        } @else {
+          <p class="muted">Nenhum alerta com origem identificada (num DDoS, por exemplo, são muitas origens).</p>
+        }
+      </section>
+
+      <section class="block">
+        <h2>Alvos mais atacados</h2>
+        <div class="table-wrap"><table class="data ips">
+          <thead><tr><th>IP de destino</th><th class="num">Incidentes</th><th class="num">Alertas</th></tr></thead>
+          <tbody>
+            @for (t of stats.topTargets; track t.ip) {
+              <tr><td class="ip">{{ t.ip }}</td><td class="num">{{ t.incidents }}</td><td class="num">{{ t.alerts }}</td></tr>
+            }
+          </tbody>
+        </table></div>
+      </section>
+    </div>
+  }
+} @else {
+  <p class="muted">Carregando…</p>
+}
