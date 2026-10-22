@@ -1,7 +1,7 @@
 # api/ — API do IDS
 
-Java 25 + Spring Boot 4.1, PostgreSQL 18 + Flyway. Recebe os alertas do sensor (`POST /api/alerts`) e, nas
-próximas etapas, agrupa os alertas em incidentes, avisa o dashboard por WebSocket e gera explicações com a LLM.
+Java 25 + Spring Boot 4.1, PostgreSQL 18 + Flyway. Recebe os alertas do sensor, agrupa em incidentes e avisa o
+dashboard ao vivo por WebSocket. Próxima etapa: explicações dos incidentes com a LLM.
 
 ## Rodando
 
@@ -21,42 +21,63 @@ curl localhost:8080/actuator/health
 
 Para o sensor mandar os alertas: `./ids teste-flood --api http://localhost:8080` (na raiz do projeto).
 
+## Endpoints
+
+| | Quem usa | O que faz |
+|---|---|---|
+| `POST /api/alerts` | sensor | recebe um lote `{sensor, alerts: [...]}` (formato em `sensor/src/alerts.py`). 201 `{"saved": n}`; 400 se o JSON ou um campo obrigatório estiver errado |
+| `GET /api/incidents?limit=50` | dashboard | os incidentes mais recentes primeiro (`limit` de 1 a 500) |
+| `ws://localhost:8080/ws` (STOMP) | dashboard | tópico `/topic/incidents`: um incidente cada vez que abre ou muda |
+| `GET /actuator/health` | monitoramento | `{"status": "UP"}` |
+
+O `GET` e o WebSocket mandam o incidente no mesmo formato, sempre completo:
+
+```json
+{"id": 1, "sensor": "pc-casa", "type": "SYN Flood", "dstIp": "127.0.0.1",
+ "startedAt": "2026-10-22T18:40:00Z", "lastSeenAt": "2026-10-22T18:40:20Z", "alertCount": 2, "peakRate": 180.0}
+```
+
+O dashboard busca a lista com o `GET` ao abrir e depois só troca pelo `id` o que chega no WebSocket. O navegador só
+aceita conexões de `ids.dashboard-origin` (`application.yml`, padrão `http://localhost:4200`); o CORS libera só `GET`.
+
+## Incidentes
+
+Vários alertas do mesmo ataque viram um incidente só: mesmo **sensor + type + dstIp**, com no máximo **60 s** entre
+um alerta e o seguinte (`IncidentService.GAP`, 6 janelas de 10 s do `volume.py`). Passou disso, o ataque acabou e o
+próximo alerta abre um incidente novo. O incidente guarda início, último alerta, quantidade de alertas e o pico de
+pacotes/s (`peakRate`, vazio se só vieram alertas do modelo).
+
 ## Como está organizado
 
 ```
 src/main/java/dev/guilhermedantas/ids/
-├── IdsApiApplication.java      # main
-└── alert/                      # um pacote por funcionalidade (alertas, depois incidentes...)
-    ├── AlertBatchRequest.java  # DTO: o JSON que chega {sensor, alerts}
-    ├── AlertRequest.java       # DTO: um alerta
-    ├── Alert.java              # entidade JPA (tabela alerts)
-    ├── AlertRepository.java    # acesso ao banco (Spring Data JPA)
-    ├── AlertService.java       # regras de negócio
-    └── AlertController.java    # endpoint HTTP
+├── IdsApiApplication.java          # main
+├── alert/                          # um pacote por funcionalidade
+│   ├── AlertBatchRequest.java      # DTO: o JSON que chega {sensor, alerts}
+│   ├── AlertRequest.java           # DTO: um alerta (com as validações)
+│   ├── Alert.java                  # entidade JPA (tabela alerts), aponta para o incidente
+│   ├── AlertRepository.java        # acesso ao banco (Spring Data JPA)
+│   ├── AlertService.java           # salva o lote e coloca cada alerta num incidente, numa transação
+│   └── AlertController.java        # POST /api/alerts
+├── incident/
+│   ├── Incident.java               # entidade JPA (tabela incidents)
+│   ├── IncidentRepository.java
+│   ├── IncidentService.java        # regra de agrupamento + lista dos recentes
+│   ├── IncidentMessage.java        # o formato que o dashboard recebe (GET e WebSocket)
+│   ├── IncidentNotifier.java       # manda para /topic/incidents depois do commit
+│   └── IncidentController.java     # GET /api/incidents
+└── config/
+    ├── WebSocketConfig.java        # STOMP em /ws, broker simples em /topic
+    └── WebConfig.java              # CORS para o dashboard
 src/main/resources/
 ├── application.yml
-└── db/migration/V1__criar_alertas.sql   # Flyway: cria a tabela alerts
-compose.yaml                             # PostgreSQL de desenvolvimento
+└── db/migration/                   # Flyway
+    ├── V1__criar_alertas.sql
+    └── V2__criar_incidentes.sql
+compose.yaml                        # PostgreSQL de desenvolvimento
 ```
 
 O caminho de uma requisição: **Controller** (HTTP, validação) → **Service** (regra) → **Repository** (banco).
 Cada camada só conhece a de baixo, então dá para testar e trocar uma sem mexer nas outras.
 
-## Roteiro da etapa 1: receber alertas
-
-Cada arquivo de `alert/` tem um TODO explicando o que fazer. Uma ordem que funciona:
-
-1. **`AlertRequest` e `AlertBatchRequest`** (records): o formato do JSON. Record é uma classe imutável que já vem
-   com construtor, getters, `equals` e `toString`, ideal para DTO.
-2. **`Alert`** (entidade): o formato do banco. Rode a API: se algum campo não bater com a tabela, ela nem sobe
-   (`ddl-auto: validate`) e a mensagem diz qual coluna está errada.
-3. **`AlertRepository`**: uma linha.
-4. **`AlertService`**: converte e salva, com `@Transactional`.
-5. **`AlertController`**: o `@PostMapping`. Teste com o `curl` que está no TODO e depois com o sensor.
-6. **Teste automatizado** em `src/test/.../alert/`: um `@SpringBootTest` com `MockMvc` mandando um JSON válido
-   (espera 201 e uma linha no banco) e um inválido (espera 400). O `TestcontainersConfiguration` já sobe o banco.
-
-Quando estiver pronto, me chame para revisar. Depois vêm os **incidentes** (vários alertas do mesmo ataque viram um
-incidente só, com início, fim e pico) e o **WebSocket** para o dashboard ao vivo.
-
-**Mudou o banco?** Nunca edite uma migração que já rodou: crie `V2__...sql`. O Flyway guarda quais já aplicou.
+**Mudou o banco?** Nunca edite uma migração que já rodou: crie `V3__...sql`. O Flyway guarda quais já aplicou.
