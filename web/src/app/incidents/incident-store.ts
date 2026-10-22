@@ -1,9 +1,11 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Client } from '@stomp/stompjs';
+import { Observable } from 'rxjs';
 
 import { API_URL, WS_URL } from '../config';
 import { Incident } from './incident';
+import { IncidentAlert } from './incident-alert';
 import { upsertIncident } from './incident-rules';
 
 export type ConnectionStatus = 'conectando' | 'conectado' | 'desconectado';
@@ -58,5 +60,15 @@ export class IncidentStore {
   disconnect(): void {
     this.client?.deactivate();
     this.client = undefined;
+  }
+
+  /** Um incidente pelo id: pode ser antigo, fora dos 50 que a lista carrega. Erro 404 se nao existe. */
+  fetchIncident(id: number): Observable<Incident> {
+    return this.http.get<Incident>(`${API_URL}/api/incidents/${id}`);
+  }
+
+  /** Os alertas de um incidente, em ordem de tempo. */
+  fetchAlerts(incidentId: number): Observable<IncidentAlert[]> {
+    return this.http.get<IncidentAlert[]>(`${API_URL}/api/alerts`, { params: { incident: incidentId } });
   }
 }

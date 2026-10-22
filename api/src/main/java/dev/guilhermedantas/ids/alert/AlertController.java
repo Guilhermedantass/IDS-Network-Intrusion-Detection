@@ -1,9 +1,13 @@
 package dev.guilhermedantas.ids.alert;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,5 +41,11 @@ public class AlertController {
     @ResponseStatus(HttpStatus.CREATED)
     public SaveResponse receive(@Valid @RequestBody AlertBatchRequest batch) {
         return new SaveResponse(service.save(batch));
+    }
+
+    /** GET /api/alerts?incident=ID: os alertas de um incidente (pagina de detalhe do dashboard). */
+    @GetMapping(params = "incident")
+    public List<AlertResponse> byIncident(@RequestParam("incident") long incidentId) {
+        return service.byIncident(incidentId);
     }
 }

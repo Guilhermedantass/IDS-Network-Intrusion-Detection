@@ -1,0 +1,83 @@
+<nav class="crumbs" aria-label="Caminho">
+  <a routerLink="/incidents">Incidentes</a>
+  <span aria-hidden="true">/</span>
+  <span>#{{ id() }}</span>
+</nav>
+
+@if (notFound()) {
+  <h1>Incidente #{{ id() }} não encontrado</h1>
+  <p class="muted">Ele pode ter sido apagado do banco. <a routerLink="/incidents">Voltar para a lista de incidentes</a>.</p>
+} @else if (incident(); as incident) {
+  <header>
+    <h1>{{ incident.type }} em <span class="ip">{{ incident.dstIp }}</span></h1>
+    <p>
+      <span class="state" [class.on]="active()">{{ active() ? 'Ativo' : 'Encerrado' }}</span>
+    </p>
+  </header>
+
+  <dl class="facts">
+    <div><dt>Início</dt><dd>{{ incident.startedAt | date: 'dd/MM HH:mm:ss' }}</dd></div>
+    <div><dt>Último alerta</dt><dd>{{ incident.lastSeenAt | date: 'dd/MM HH:mm:ss' }}</dd></div>
+    <div><dt>Duração</dt><dd>{{ duration() }}</dd></div>
+    <div><dt>Alertas</dt><dd>{{ incident.alertCount }}</dd></div>
+    <div>
+      <dt>Pico</dt>
+      <dd>
+        @if (incident.peakRate !== null) {
+          {{ incident.peakRate | number: '1.0-1' }} <span class="unit">pkt/s</span>
+        } @else {
+          <span class="muted">–</span>
+        }
+      </dd>
+    </div>
+    <div><dt>Sensor</dt><dd>{{ incident.sensor }}</dd></div>
+  </dl>
+
+  <h2>Alertas</h2>
+  @if (alerts(); as alerts) {
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Visto em</th>
+            <th>Detectado por</th>
+            <th>Origem</th>
+            <th class="num">Porta</th>
+            <th>Protocolo</th>
+            <th class="num">Pacotes</th>
+            <th class="num">Taxa</th>
+            <th class="num">Portas</th>
+            <th class="num">Fluxos</th>
+            <th class="num">Confiança</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (alert of alerts; track alert.id) {
+            <tr>
+              <td>{{ alert.ts | date: 'HH:mm:ss' }}</td>
+              <td>{{ detectorLabel[alert.detectedBy] ?? alert.detectedBy }}</td>
+              <td [class.ip]="alert.srcIp">{{ alert.srcIp ?? 'várias' }}</td>
+              <td class="num">{{ alert.dstPort ?? '–' }}</td>
+              <td>{{ alert.protocol }}</td>
+              <td class="num">{{ alert.packets === null ? '–' : (alert.packets | number) }}</td>
+              <td class="num">
+                @if (alert.rate !== null) {
+                  {{ alert.rate | number: '1.0-1' }} <span class="unit">pkt/s</span>
+                } @else {
+                  –
+                }
+              </td>
+              <td class="num">{{ alert.ports ?? '–' }}</td>
+              <td class="num">{{ alert.flows ?? '–' }}</td>
+              <td class="num">{{ alert.probability === null ? '–' : (alert.probability | percent: '1.0-1') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <p class="muted">Carregando alertas…</p>
+  }
+} @else {
+  <p class="muted">Carregando…</p>
+}
