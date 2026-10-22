@@ -20,6 +20,11 @@ Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
 - Migracoes Flyway em `db/migration/` (V1 alerts, V2 incidents + `alerts.incident_id`); nunca editar uma que ja rodou
 - Postgres de dev no `api/compose.yaml` (sobe sozinho com spring-boot-docker-compose); testes com Testcontainers
 
+`web/` (Angular 22 standalone + signals, sem zone.js, Vitest, `@stomp/stompjs`; detalhes em `web/README.md`):
+- pagina de incidentes ao vivo (GET + WebSocket, status ativo/encerrado pelo relogio) e barra lateral (`shell/`)
+- visual: tema claro, IBM Plex Sans/Mono, tokens em `styles.scss`; vermelho (`--signal`) so para ataque ativo
+- precisa rodar em localhost:4200 (origem aceita pela API)
+
 ## Comandos
 ```bash
 ./ids ao-vivo [-i lo]        # captura ao vivo (sudo); trafego para o proprio PC passa pela interface lo

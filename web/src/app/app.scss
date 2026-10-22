@@ -1,0 +1,34 @@
+// Casca: barra lateral fixa a esquerda e o conteudo rolando ao lado.
+:host {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  min-height: 100vh;
+}
+
+app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+main {
+  min-width: 0;   // deixa a tabela rolar na horizontal em vez de alargar a pagina
+  padding: 36px 40px;
+}
+
+@media (max-width: 720px) {
+  :host {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  app-sidebar {
+    position: static;
+    height: auto;
+  }
+
+  main {
+    padding: 24px 16px;
+  }
+}
