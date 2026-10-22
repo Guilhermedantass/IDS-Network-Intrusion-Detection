@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Atalho para o IDS: usa o Python do ambiente virtual do projeto.
+# Atalho para o IDS: usa o Python do ambiente virtual do projeto e roda o sensor.
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -x "$DIR/.venv/bin/python" ]; then
     echo "Ambiente virtual nao encontrado. Crie com:"
-    echo "  python -m venv .venv && .venv/bin/pip install -r requirements.txt"
+    echo "  python -m venv .venv && .venv/bin/pip install -r sensor/requirements.txt"
     exit 1
 fi
-cd "$DIR" && exec "$DIR/.venv/bin/python" -m src.ids "$@"
+PYTHONPATH="$DIR/sensor" exec "$DIR/.venv/bin/python" -m src.ids "$@"
