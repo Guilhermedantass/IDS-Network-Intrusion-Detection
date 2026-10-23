@@ -1,16 +1,19 @@
 """Servico do sensor: fica ligado e obedece o dashboard (./ids servico --api URL).
 
 A cada HEARTBEAT s manda o estado para a API (POST /api/sensors/heartbeat) e recebe de
-volta o estado desejado: capturar ou nao, e em qual interface. Se for diferente do atual,
-liga, desliga ou troca a captura. O sensor nao abre porta nenhuma: ele chama a API, nunca
+volta o estado desejado: capturar ou nao, em qual interface e quais IPs bloquear. Se for
+diferente do atual, liga, desliga ou troca a captura e ajusta o firewall (src/firewall.py). O sensor nao abre porta nenhuma: ele chama a API, nunca
 o contrario (funciona com o sensor em outra maquina, atras de NAT).
 
 Contrato (a API em Java depende dele):
     enviado  {"sensor", "capturing", "interface", "startedAt", "flows", "attacks", "alertsSent",
-              "interfaces": [...], "error"}
-    recebido {"capture": true|false, "interface": "lo"|null}   (null = interface padrao)
+              "interfaces": [...], "error", "blocked": [...], "protected": [...], "blockError"}
+    recebido {"capture": true|false, "interface": "lo"|null, "blocked": ["10.0.0.5", ...]}
+             (interface null = a padrao; sem "blocked" = nao mexe nos bloqueios)
+    "blocked" enviado = IPs bloqueados de fato; "protected" = os que nunca sao bloqueados;
+    "blockError" = por que algum pedido de bloqueio nao foi aplicado, ou null
 
-sudo: o tcpdump precisa de root. O servico pede a senha uma vez ao ligar (sudo -v) e renova
+sudo: o tcpdump e o nft precisam de root. O servico pede a senha uma vez ao ligar (sudo -v) e renova
 a permissao a cada SUDO_REFRESH s (sudo -n -v), entao a captura pode comecar a qualquer hora.
 """
 import json
@@ -24,6 +27,7 @@ from datetime import datetime, timezone
 
 from .alerts import AlertSender
 from .detect import Detector
+from .firewall import Firewall, protected_ips
 from .live import LiveCapture, ask_sudo, default_interface, tcpdump_command
 
 HEARTBEAT = 5       # s entre um "estou vivo" e o proximo
@@ -90,10 +94,11 @@ class Capture:
 class Service:
     """Mantem a captura igual ao estado desejado que a API devolve em cada heartbeat."""
 
-    def __init__(self, api, sensor, db_path, capture_factory=Capture, post=None, log=print):
+    def __init__(self, api, sensor, db_path, capture_factory=Capture, post=None, firewall=None, log=print):
         self.api, self.sensor, self.db_path = api.rstrip('/'), sensor, db_path
         self.capture_factory, self.log = capture_factory, log
         self.post = post or self._post
+        self.firewall = firewall or Firewall(protected=lambda: protected_ips(self.api), log=log)
         self.capture = None
         self.last = None            # contadores e erro da ultima captura, para seguir aparecendo depois
         self.failed_for = None      # desejado que falhou: nao tenta de novo ate o dashboard mudar
@@ -114,6 +119,9 @@ class Service:
             'flows': 0, 'attacks': 0, 'alertsSent': 0,
             'interfaces': list_interfaces(),
             'error': None,
+            'blocked': sorted(self.firewall.blocked),
+            'protected': sorted(self.firewall.protected),
+            'blockError': self.firewall.error,
         }
         if c:
             body.update(c.counters())
@@ -124,6 +132,8 @@ class Service:
     # ---- aplicar o desejado
 
     def apply(self, desired):
+        if desired.get('blocked') is not None:
+            self.firewall.sync(desired['blocked'])
         want = bool(desired.get('capture'))
         interface = desired.get('interface') or default_interface()
         key = (want, interface)
@@ -162,6 +172,7 @@ class Service:
 
     def tick(self):
         """Um heartbeat: manda o estado e aplica o desejado. Com a API fora, mantem o que esta."""
+        self.firewall.refresh()
         try:
             desired = self.post(self.status())
         except (urllib.error.URLError, OSError, ValueError) as exc:
@@ -178,6 +189,7 @@ class Service:
         if self.capture:
             self.capture.finish()
             self._finish_capture()
+        self.firewall.close()       # desligou o servico: nada fica bloqueado
 
 
 def keep_sudo(stop, log=print):
@@ -193,6 +205,7 @@ def run(api, sensor, db_path):
     stop = threading.Event()
     threading.Thread(target=keep_sudo, args=(stop,), daemon=True).start()
     service = Service(api, sensor, db_path)
+    service.firewall.reset()    # bloqueios que sobraram de um servico que caiu
     print(f'Servico do sensor "{sensor}" ligado. Controle pelo dashboard (pagina Sensores). Ctrl+C para desligar.')
     try:
         while True:

@@ -30,6 +30,8 @@ src/app/
 │   └── overview.*
 ├── sensors/                     # iniciar/parar a captura de cada sensor (busca a lista a cada 3 s)
 │   ├── sensor.ts                # o formato (espelha o SensorView do Java)
+│   ├── sensor-api.ts            # as chamadas de /api/sensors (captura, bloquear, desbloquear)
+│   ├── block-rules.ts           # estado do bloqueio de um IP (pedido x aplicado), com testes
 │   └── sensors.*
 └── incidents/
     ├── incident.ts              # o formato do incidente (espelha o IncidentMessage do Java)

@@ -2,6 +2,7 @@ package dev.guilhermedantas.ids.sensor;
 
 import java.util.List;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,7 +19,9 @@ import jakarta.validation.Valid;
  *
  *   POST /api/sensors/heartbeat         (sensor)    estado atual -> estado desejado
  *   GET  /api/sensors                   (dashboard) os sensores conhecidos
- *   PUT  /api/sensors/{name}/capture    (dashboard) {"capture": true, "interface": "lo"}
+ *   PUT    /api/sensors/{name}/capture       (dashboard) {"capture": true, "interface": "lo"}
+ *   PUT    /api/sensors/{name}/blocked/{ip}  (dashboard) bloquear o IP no firewall do sensor
+ *   DELETE /api/sensors/{name}/blocked/{ip}  (dashboard) desbloquear
  */
 @RestController
 @RequestMapping("/api/sensors")
@@ -41,7 +44,17 @@ public class SensorController {
     }
 
     @PutMapping("/{name}/capture")
-    public SensorView request(@PathVariable String name, @RequestBody SensorCommand command) {
-        return registry.request(name, command);
+    public SensorView request(@PathVariable String name, @RequestBody CaptureRequest request) {
+        return registry.request(name, request);
+    }
+
+    @PutMapping("/{name}/blocked/{ip}")
+    public SensorView block(@PathVariable String name, @PathVariable String ip) {
+        return registry.block(name, ip);
+    }
+
+    @DeleteMapping("/{name}/blocked/{ip}")
+    public SensorView unblock(@PathVariable String name, @PathVariable String ip) {
+        return registry.unblock(name, ip);
     }
 }

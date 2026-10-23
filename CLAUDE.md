@@ -7,7 +7,7 @@ Responda em **portugues**, com linguagem simples.
 Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
 - `src/data.py` limpeza + colunas removidas (atalhos, flags TCP) · `src/features.py` selecao (SHAP/correlacao)
 - `src/pipeline.py` `IDSPipeline`: modelo binario (BENIGN x ataque) -> modelo de tipo (DDoS/PortScan/WebAttack/SQLInjection/Desconhecido)
-- `src/flows.py` pacotes -> fluxos · `src/volume.py` deteccao por volume (janela de 10 s, limites em `Limits`) · `src/alerts.py` alertas no formato da API + envio HTTP em thread · `src/live.py` captura com tcpdump · `src/service.py` servico controlado pelo dashboard (heartbeat) · `src/detect.py` classifica e grava · `src/storage.py` SQLite · `src/report.py` resumo · `src/ids.py` CLI
+- `src/flows.py` pacotes -> fluxos · `src/volume.py` deteccao por volume (janela de 10 s, limites em `Limits`) · `src/alerts.py` alertas no formato da API + envio HTTP em thread · `src/live.py` captura com tcpdump · `src/service.py` servico controlado pelo dashboard (heartbeat) · `src/firewall.py` bloqueio de IPs no nftables (tabela `inet ids`, protegidos: loopback/IPs do PC/gateway/API) · `src/detect.py` classifica e grava · `src/storage.py` SQLite · `src/report.py` resumo · `src/ids.py` CLI
 - `sensor/notebooks/02..05` treino (gerados e executados); `notebook_*.ipynb` e `archive/` sao historico
 - `sensor/results/modelos/*.ubj|*.json` modelos versionados no git; `sensor/datas/raw/` CSVs (fora do git)
 
@@ -17,13 +17,14 @@ Python em `sensor/` (o `.venv` fica na raiz; `./ids` usa `PYTHONPATH=sensor`):
   `GET /api/incidents?limit=`, `/api/incidents/{id}`, `GET /api/alerts?incident=`, `GET /api/stats?hours=` (`stats/`); WebSocket STOMP em `/ws`, topico `/topic/incidents`
   (`IncidentMessage`, sempre o estado completo; sai so depois do commit via `@TransactionalEventListener`)
 - `sensor/` controle dos sensores em memoria (`SensorRegistry`): `POST /api/sensors/heartbeat` (sensor manda o estado
-  a cada 5 s e recebe o desejado), `GET /api/sensors`, `PUT /api/sensors/{name}/capture`; offline apos 15 s
-- `config/` WebSocket + CORS (GET; PUT so em `/api/sensors/**`); unica origem aceita: `ids.dashboard-origin` no `application.yml` (localhost:4200)
+  a cada 5 s e recebe o desejado: captura + IPs bloqueados), `GET /api/sensors`, `PUT /api/sensors/{name}/capture`,
+  `PUT|DELETE /api/sensors/{name}/blocked/{ip}`; offline apos 15 s
+- `config/` WebSocket + CORS (GET; PUT/DELETE so em `/api/sensors/**`); unica origem aceita: `ids.dashboard-origin` no `application.yml` (localhost:4200)
 - Migracoes Flyway em `db/migration/` (V1 alerts, V2 incidents + `alerts.incident_id`); nunca editar uma que ja rodou
 - Postgres de dev no `api/compose.yaml` (sobe sozinho com spring-boot-docker-compose); testes com Testcontainers
 
 `web/` (Angular 22 standalone + signals, sem zone.js, Vitest, `@stomp/stompjs`; detalhes em `web/README.md`):
-- `/overview` (pagina inicial: manchete ao vivo, totais, graficos por hora/tipo, top origens/alvos das ultimas 24 h), `/incidents` ao vivo (GET + WebSocket, status ativo/encerrado pelo `Clock`) `/incidents/:id` com os alertas e `/sensors` (iniciar/parar captura);
+- `/overview` (pagina inicial: manchete ao vivo, totais, graficos por hora/tipo, top origens/alvos das ultimas 24 h), `/incidents` ao vivo (GET + WebSocket, status ativo/encerrado pelo `Clock`) `/incidents/:id` com os alertas e as origens (botao "Bloquear origem") e `/sensors` (iniciar/parar captura, IPs bloqueados);
   WebSocket ligado no `App`; barra lateral em `shell/`
 - visual: tema claro, IBM Plex Sans/Mono, tokens em `styles.scss`; vermelho (`--signal`) so para ataque ativo;
   cor fixa por tipo de ataque em `incidents/attack-types.ts`; `LOCALE_ID` pt-BR
@@ -77,7 +78,7 @@ Na pratica, o usuario tem pedido que eu escreva o Java/Angular e explique cada p
 O usuario achou o projeto "pobre" para postar. Conclusao: o projeto ja e acima da media (captura real, extrator
 do CICFlowMeter com os bugs, flags TCP erradas no dataset, deteccao por volume cobrindo o ponto cego do modelo,
 sistema ponta a ponta com testes); falta demo e gancho. Proposta, por ordem:
-1. **Detectar e responder (IPS):** botao "Bloquear origem" no incidente criando regra no `nftables` (e modo
+1. **Detectar e responder (IPS):** [FEITO na branch feat/bloqueio-ips, manual; falta testar em casa com 3 PCs: servidor (sensor), atacante e usuario comum] botao "Bloquear origem" no incidente criando regra no `nftables` (e modo
    automatico opcional), com lista de excecoes (nunca bloquear o proprio PC/gateway) e desbloqueio pelo dashboard.
 2. **MITRE ATT&CK por incidente:** PortScan -> T1046, floods/DDoS -> T1498 (conferir os IDs e subtecnicas antes).
 3. **LLM explicando cada incidente** (o que e, risco, o que fazer), usando o MITRE; Spring AI + Ollama, modelo

@@ -1,6 +1,7 @@
 import urllib.error
 
 from src import service
+from src.firewall import Firewall
 from src.service import Service
 
 
@@ -35,7 +36,9 @@ def make_service(responses):
             raise r
         return r
 
-    svc = Service('http://api', 'sensor-teste', ':memory:', capture_factory=FakeCapture, post=post, log=lambda m: None)
+    firewall = Firewall(protected=lambda: {'192.168.0.1'}, run=lambda script: None, log=lambda m: None)
+    svc = Service('http://api', 'sensor-teste', ':memory:', capture_factory=FakeCapture, post=post,
+                  firewall=firewall, log=lambda m: None)
     return svc, sent
 
 
@@ -58,7 +61,7 @@ def test_heartbeat_leva_o_estado_da_captura():
     assert body['flows'] == 10 and body['attacks'] == 2 and body['alertsSent'] == 1
     assert body['startedAt'].endswith('Z')
     assert set(body) == {'sensor', 'capturing', 'interface', 'startedAt', 'flows', 'attacks', 'alertsSent',
-                         'interfaces', 'error'}
+                         'interfaces', 'error', 'blocked', 'protected', 'blockError'}
 
 
 def test_parar_e_trocar_de_interface():
@@ -93,6 +96,20 @@ def test_captura_com_erro_nao_fica_tentando_de_novo():
     svc.tick()                                      # o dashboard mandou parar...
     svc.tick()                                      # ...e iniciar de novo: agora tenta
     assert len(FakeCapture.created) == 2
+
+
+def test_bloqueios_seguem_o_desejado():
+    svc, sent = make_service([{'capture': False, 'interface': None, 'blocked': ['10.0.0.5', '192.168.0.1']},
+                              {'capture': False, 'interface': None},
+                              {'capture': False, 'interface': None, 'blocked': []}])
+    svc.tick()
+    assert svc.firewall.blocked == {'10.0.0.5'}
+    svc.tick()                                      # sem "blocked" na resposta: nao mexe
+    body = sent[1]
+    assert body['blocked'] == ['10.0.0.5'] and body['protected'] == ['192.168.0.1']
+    assert '192.168.0.1 e protegido' in body['blockError']
+    svc.tick()
+    assert svc.firewall.blocked == set()
 
 
 def test_interfaces_sem_as_do_docker(monkeypatch):
