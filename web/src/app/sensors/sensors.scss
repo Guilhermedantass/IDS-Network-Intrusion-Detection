@@ -179,3 +179,39 @@ button:disabled {
   margin: 10px 0 0;
   font-size: 0.85rem;
 }
+
+// ---- IPs bloqueados
+
+h3 {
+  margin: 24px 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+h3 + p {
+  margin: 0;
+}
+
+.blocked {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blocked li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 6px 0;
+}
+
+.blocked .ip {
+  min-width: 140px;   // alinha o status dos IPs curtos e longos
+}
+
+button.small {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 0.85rem;
+}

@@ -54,6 +54,30 @@
             @if (interfaceOf(s) !== 'lo' && !s.desired.capture) {
               <p class="hint muted">Para ver ataques ao próprio PC (127.0.0.1), use a interface <code>lo</code>.</p>
             }
+
+            <h3>IPs bloqueados</h3>
+            @if (s.reported.blockError) {
+              <p class="error"><strong>Bloqueio não aplicado.</strong> {{ s.reported.blockError }}</p>
+            }
+            @let ips = blockedIps(s);
+            @if (ips.length === 0) {
+              <p class="muted">Nenhum. Para bloquear uma origem, abra o incidente.</p>
+            } @else {
+              <ul class="blocked">
+                @for (ip of ips; track ip) {
+                  @let b = blockState(s, ip);
+                  <li>
+                    <span class="ip">{{ ip }}</span>
+                    <span class="muted">{{ b === 'blocked' ? 'bloqueado' : b === 'blocking' ? 'bloqueando…' : 'desbloqueando…' }}</span>
+                    @if (b !== 'unblocking') {
+                      <button type="button" class="stop small" [disabled]="sending() === s.name" (click)="unblock(s, ip)">
+                        Desbloquear
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
           }
         </li>
       }

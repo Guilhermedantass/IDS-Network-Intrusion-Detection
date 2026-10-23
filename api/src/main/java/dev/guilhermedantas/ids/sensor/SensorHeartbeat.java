@@ -19,6 +19,10 @@ import jakarta.validation.constraints.NotNull;
  * @param flows      fluxos da captura atual (ou da ultima)
  * @param interfaces as interfaces de rede da maquina, para o dashboard oferecer
  * @param error      erro da ultima captura (ex.: tcpdump sem permissao), ou null
+ * @param blocked    IPs bloqueados de fato no firewall do sensor (null em sensor antigo, sem bloqueio)
+ * @param protectedIps IPs que o sensor nunca bloqueia: os dele, o gateway e o da API. No JSON e
+ *                   "protected", outra palavra reservada do Java
+ * @param blockError por que algum pedido de bloqueio nao foi aplicado (ex.: nft sem sudo), ou null
  */
 public record SensorHeartbeat(
         @NotBlank String sensor,
@@ -29,5 +33,8 @@ public record SensorHeartbeat(
         long attacks,
         long alertsSent,
         @NotNull List<String> interfaces,
-        String error) {
+        String error,
+        List<String> blocked,
+        @JsonProperty("protected") List<String> protectedIps,
+        String blockError) {
 }

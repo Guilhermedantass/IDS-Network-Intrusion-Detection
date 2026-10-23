@@ -1,18 +1,19 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, catchError, switchMap, timer } from 'rxjs';
+import { EMPTY, Observable, catchError, switchMap, timer } from 'rxjs';
 
 import { Clock } from '../clock';
-import { API_URL } from '../config';
 import { formatDuration } from '../incidents/incident-rules';
-import { Sensor, SensorCommand } from './sensor';
+import { BlockState, blockState, blockedIps } from './block-rules';
+import { CaptureRequest, Sensor } from './sensor';
+import { SensorApi } from './sensor-api';
 
 const POLL_MS = 3000;
 
 /**
- * Controle dos sensores (rota 'sensors'): ver se cada sensor esta online e iniciar/parar a captura.
+ * Controle dos sensores (rota 'sensors'): ver se cada sensor esta online, iniciar/parar a captura e
+ * ver/desbloquear os IPs bloqueados (o bloqueio e feito na tela do incidente).
  *
  * O dashboard nao fala com o sensor: ele muda o pedido na API, e o sensor aplica no proximo heartbeat
  * (ate 5 s). Por isso a tela mostra "Iniciando..." enquanto o pedido e o estado sao diferentes.
@@ -25,7 +26,7 @@ const POLL_MS = 3000;
   styleUrl: './sensors.scss',
 })
 export class Sensors {
-  private readonly http = inject(HttpClient);
+  private readonly api = inject(SensorApi);
   protected readonly now = inject(Clock).now;
 
   protected readonly sensors = signal<Sensor[] | null>(null);   // null = carregando
@@ -41,7 +42,7 @@ export class Sensors {
     timer(0, POLL_MS)
       .pipe(
         switchMap(() =>
-          this.http.get<Sensor[]>(`${API_URL}/api/sensors`).pipe(
+          this.api.list().pipe(
             catchError(() => {
               this.failed.set(true);
               return EMPTY;
@@ -85,12 +86,23 @@ export class Sensors {
 
   protected toggle(s: Sensor): void {
     const iface = this.interfaceOf(s) || null;
-    this.send(s, { capture: !s.desired.capture, interface: iface });
+    const request: CaptureRequest = { capture: !s.desired.capture, interface: iface };
+    this.send(s, this.api.capture(s.name, request));
   }
 
-  private send(s: Sensor, command: SensorCommand): void {
+  protected readonly blockedIps = blockedIps;
+
+  protected blockState(s: Sensor, ip: string): BlockState {
+    return blockState(s, ip);
+  }
+
+  protected unblock(s: Sensor, ip: string): void {
+    this.send(s, this.api.unblock(s.name, ip));
+  }
+
+  private send(s: Sensor, request: Observable<Sensor>): void {
     this.sending.set(s.name);
-    this.http.put<Sensor>(`${API_URL}/api/sensors/${encodeURIComponent(s.name)}/capture`, command).subscribe({
+    request.subscribe({
       next: (updated) => {
         this.sensors.update((list) => list?.map((x) => (x.name === updated.name ? updated : x)) ?? null);
         this.sending.set(null);

@@ -33,6 +33,50 @@
     <div><dt>Sensor</dt><dd>{{ incident.sensor }}</dd></div>
   </dl>
 
+  @if (alerts() !== null) {
+    <section class="sources">
+      <h2>Origens</h2>
+      @let s = sensor();
+      @if (sources().length === 0) {
+        <p class="muted">Ataque de muitas origens ao mesmo tempo: o bloqueio por IP não se aplica.</p>
+      } @else {
+        @if (s === null) {
+          <p class="muted">O sensor {{ incident.sensor }} não está conectado à API. Ligue o serviço do sensor
+            (<code>./ids servico --api …</code>) para poder bloquear.</p>
+        } @else if (s && !s.online) {
+          <p class="muted">O sensor {{ incident.sensor }} está offline: o bloqueio será aplicado quando ele voltar.</p>
+        }
+        @if (s?.reported?.blockError; as error) {
+          <p class="error"><strong>Bloqueio não aplicado.</strong> {{ error }}</p>
+        }
+        @if (blockFailed(); as failed) {
+          <p class="error">{{ failed }}</p>
+        }
+        <ul>
+          @for (src of sources(); track src.ip) {
+            <li>
+              <span class="ip">{{ src.ip }}</span>
+              <span class="muted">{{ src.count }} {{ src.count === 1 ? 'alerta' : 'alertas' }}</span>
+              @if (s) {
+                @let b = blockState(s, src.ip);
+                <span class="block" [class]="b">{{ blockLabel[b] }}</span>
+                @if (b !== 'protected') {
+                  <button type="button" [class.undo]="b === 'blocked' || b === 'blocking'"
+                          [disabled]="sending() === src.ip || b === 'unblocking'" (click)="toggleBlock(s, src.ip)">
+                    {{ b === 'blocked' || b === 'blocking' ? 'Desbloquear' : 'Bloquear origem' }}
+                  </button>
+                }
+              }
+            </li>
+          }
+        </ul>
+        @if (manySources()) {
+          <p class="hint muted">Parte dos alertas veio de muitas origens ao mesmo tempo e não aparece aqui.</p>
+        }
+      }
+    </section>
+  }
+
   <h2>Alertas</h2>
   @if (alerts(); as alerts) {
     <div class="table-wrap">
