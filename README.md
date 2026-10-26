@@ -1,268 +1,154 @@
-# IDS - Network Intrusion Detection
+# IDS — Detecção de Intrusões com Machine Learning
 
-Sistema de Detecção de Intrusões (IDS) construído com aprendizado de máquina usando o dataset CIC-IDS-2017.
+Sistema de detecção e resposta a intrusões de rede, de ponta a ponta: um **sensor** em Python captura o tráfego
+real da placa de rede, classifica cada fluxo com modelos treinados no
+[CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html) e detecta floods por volume; uma **API** em Java agrupa
+os alertas em incidentes; um **dashboard** em Angular mostra tudo ao vivo e permite **bloquear a origem do ataque**
+no firewall com um clique.
 
-## Sobre o Projeto
+<!-- TODO: GIF da demo (ataque -> incidente ao vivo -> bloqueio -> ataque para) -->
+<!-- TODO: prints da visão geral e do detalhe de um incidente -->
 
-Este repositório implementa um pipeline de análise de tráfego de rede para detectar ataques cibernéticos. O objetivo é usar o dataset CIC-IDS-2017 para:
+## O que ele faz
 
-- extrair e entender padrões de tráfego normal e malicioso;
-- limpar, tratar e transformar features de rede;
-- treinar e avaliar modelos de classificação;
-- comparar desempenho de diferentes algoritmos;
-- documentar resultados e importância das variáveis.
+- **Captura real:** lê os pacotes com `tcpdump` (ou um arquivo PCAP) e monta os fluxos com as mesmas ~80 features
+  do CIC-IDS-2017.
+- **Detecção em duas etapas com ML:** um XGBoost decide se o fluxo é ataque; um segundo diz o tipo (DDoS, PortScan,
+  WebAttack, SQL Injection ou Desconhecido).
+- **Detecção por volume:** cobre o que um modelo que olha um fluxo por vez não enxerga (SYN flood, UDP flood, DDoS
+  e port scans rápidos).
+- **Incidentes ao vivo:** vários alertas do mesmo ataque viram um incidente só, que aparece no dashboard na hora
+  (WebSocket) como ativo e depois encerrado.
+- **Resposta (IPS):** o botão "Bloquear origem" cria a regra no `nftables` da máquina do sensor; o desbloqueio
+  também é pelo dashboard. Nunca bloqueia a própria máquina, o gateway nem a API.
+- **Controle remoto do sensor:** iniciar e parar a captura pelo dashboard, sem abrir nenhuma porta no sensor.
 
-## Tecnologias Utilizadas
+## Arquitetura
 
-- Python 3
-- scikit-learn
-- XGBoost
-- pandas
-- NumPy
-- matplotlib
-- seaborn
-- Jupyter Notebook
-- Java 25 + Spring Boot 4.1 (API), PostgreSQL 18 + Flyway
-
-## Estrutura do Repositório
-
-```
-IDS-Network-Intrusion-Detection/
-├── sensor/                             # Python: captura, ML e detecção
-│   ├── datas/                          # Dados do projeto (não versionados)
-│   │   ├── raw/                        # CSVs originais do CIC-IDS-2017
-│   │   └── processed/                  # Dados tratados e preparados para treino
-│   ├── notebooks/                      # Jupyter Notebooks de análise
-│   │   ├── 02_selecao_features.ipynb   # Seleção de features dos dois modelos
-│   │   ├── 03_modelo_binario.ipynb     # Modelo 1: BENIGN x Ataque
-│   │   ├── 04_modelo_tipo_ataque.ipynb # Modelo 2: tipo de ataque
-│   │   ├── 05_pipeline_completo.ipynb  # Avaliação dos dois modelos juntos
-│   │   ├── notebook_portscan.ipynb     # Port Scan
-│   │   ├── notebook_ddos.ipynb         # DDoS
-│   │   ├── notebook_ddos_PCA.ipynb     # DDoS com redução de dimensionalidade (PCA)
-│   │   ├── notebook_web.ipynb          # Ataques Web (Brute Force, XSS, SQL Injection)
-│   │   └── archive/                    # Notebooks antigos, mantidos só como histórico
-│   ├── results/
-│   │   └── modelos/                    # Modelos finais (.ubj) e metadados (.json)
-│   ├── src/
-│   │   ├── data.py                     # Carregamento, limpeza e divisão treino/teste
-│   │   ├── features.py                 # Seleção de features (SHAP, correlação, curva top-k)
-│   │   ├── pipeline.py                 # Detecção em duas etapas (IDSPipeline)
-│   │   ├── flows.py                    # Pacotes -> fluxos com as features do CIC-IDS-2017
-│   │   ├── storage.py                  # Banco SQLite das detecções
-│   │   ├── detect.py                   # Classificação de lotes de fluxos e gravação no SQLite
-│   │   ├── volume.py                   # Detecção por volume (floods, DDoS, scans)
-│   │   ├── alerts.py                   # Alertas no formato da API e envio por HTTP
-│   │   ├── live.py                     # Captura ao vivo com tcpdump
-│   │   ├── report.py                   # Resumo das execuções
-│   │   ├── ids.py                      # Linha de comando (./ids)
-│   │   └── slice_pcap.py               # Recorta uma janela de tempo de um PCAP
-│   ├── tests/                          # Testes (pytest)
-│   ├── requirements.txt
-│   └── pytest.ini
-├── api/                                # Java/Spring Boot: recebe alertas (ver api/README.md)
-├── ids                                 # Atalho: ./ids <comando> (roda o sensor)
-└── README.md
+```mermaid
+flowchart LR
+    NIC[Placa de rede / PCAP] --> S
+    subgraph S[sensor/ · Python]
+        F[flows.py<br/>pacotes → fluxos] --> M[2 modelos XGBoost]
+        F --> V[volume.py<br/>floods e scans]
+        FW[firewall.py<br/>nftables]
+    end
+    S -- "POST /api/alerts" --> A
+    S -- "heartbeat a cada 5 s<br/>(recebe captura + IPs a bloquear)" --> A
+    subgraph A[api/ · Java 25 + Spring Boot 4]
+        I[incidentes] --> DB[(PostgreSQL)]
+    end
+    A -- "REST + WebSocket (STOMP)" --> W[web/ · Angular 22<br/>dashboard]
+    W -- "bloquear IP / iniciar captura" --> A
 ```
 
-## Dados
+O sensor nunca recebe chamadas: ele manda o próprio estado para a API a cada 5 s e recebe na resposta o que o
+dashboard pediu. Por isso funciona em outra máquina, atrás de NAT, sem expor nada.
 
-Os CSVs do [CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html) devem ser colocados em `sensor/datas/raw/` com os nomes abaixo:
+## Resultados
 
-| Arquivo esperado em `sensor/datas/raw/` | Arquivo original do CIC-IDS-2017 |
-| --- | --- |
-| `PortScan.csv` | `Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv` |
-| `DDos.csv` | `Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv` |
-| `WebAttacks.csv` | `Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv` |
+Conjunto de teste com **90.705 fluxos** que nenhum dos modelos viu no treino (os dois modelos juntos, como rodam ao
+vivo; notebook `05_pipeline_completo`):
 
-Os notebooks 02 a 05 usam os três arquivos juntos; os notebooks `notebook_*.ipynb` usam um arquivo cada.
+| Classe | Precisão | Recall | F1 | Fluxos no teste |
+|---|---:|---:|---:|---:|
+| BENIGN | 99,97% | 99,95% | 99,96% | 64.321 |
+| DDoS | 99,90% | 99,93% | 99,91% | 25.598 |
+| PortScan | 96,43% | 98,44% | 97,42% | 384 |
+| WebAttack | 98,99% | 98,75% | 98,87% | 399 |
+| SQL Injection | 100% | 33,33% | 50,00% | 3 |
 
-Os nomes diferenciam maiúsculas de minúsculas no Linux (`DDos.csv` ≠ `DDoS.csv`).
+- **Alarmes falsos:** 30 de 64.321 fluxos normais (0,05%). **Ataques perdidos:** 17 de 26.384.
+- **Velocidade:** ~750 mil fluxos/s na classificação (só o modelo, sem a captura).
+- **SQL Injection** tem só 3 exemplos no teste (e poucas dezenas no dataset inteiro); o número não é confiável
+  para nenhum lado.
 
-Os notebooks leem os dados a partir de `../datas`, então devem ser executados de dentro da pasta `sensor/notebooks/`.
+Os números vêm de `sensor/results/modelos/*.json` e do notebook 05, e são gerados de novo a cada retreino.
 
-## Como Executar
+## Decisões técnicas
 
-1. Clone o repositório:
-   ```bash
-   git clone git@github.com:Guilhermedantass/IDS-Network-Intrusion-Detection.git
-   cd IDS-Network-Intrusion-Detection
-   ```
+Algumas coisas que não aparecem na maioria dos projetos com esse dataset:
 
-2. Crie o ambiente virtual e instale as dependências:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate        # Linux / macOS
-   # .\.venv\Scripts\activate       # Windows
-   pip install -r sensor/requirements.txt
-   ```
+- **O extrator de fluxos reproduz o CICFlowMeter com os bugs dele.** O modelo foi treinado com features geradas
+  pela ferramenta em Java que criou o dataset. Para o modelo funcionar no tráfego real, o `sensor/src/flows.py`
+  calcula tudo do mesmo jeito, inclusive os erros (o padding do Ethernet conta como dados, o primeiro pacote entra
+  duas vezes em algumas médias...), conferido feature a feature contra os CSVs. O pacote `cicflowmeter` do PyPI
+  não serve: calcula várias features em outra escala.
+- **As flags TCP do CIC-IDS-2017 estão erradas.** Os fluxos de port scan só têm `PSH`, nunca o `RST` das portas
+  fechadas. Um extrator correto não reproduz isso, então essas colunas ficaram fora dos modelos.
+- **Atalhos removidos.** `Destination Port` e `Init_Win_bytes_*` identificam o ambiente do laboratório onde o
+  dataset foi gravado, não o ataque. Com eles o modelo tira nota alta no teste e erra na rede de verdade.
+- **Duplicatas removidas antes de separar treino e teste**, para o mesmo fluxo não estar nos dois lados.
+- **Volume cobre o ponto cego do ML.** Um SYN flood é feito de milhares de conexões que, uma a uma, parecem normais
+  (o modelo chama cada uma de PortScan) e o dataset não tem nenhum ataque UDP. O `volume.py` conta pacotes em
+  janelas de 10 s; quando um ataque de volume está ativo, ele dá o nome aos fluxos, para o mesmo ataque não ter dois
+  tipos.
+- **Bloqueio seguro.** O firewall usa uma tabela própria no `nftables` (não mexe no ufw/firewalld/Docker), a lista
+  de IPs protegidos é conferida na API e de novo no sensor, e tudo é desfeito ao desligar o serviço.
 
-3. Coloque os CSVs em `sensor/datas/raw/` (veja a seção **Dados**).
+## Limitações
 
-4. Abra o Jupyter e execute os notebooks em `sensor/notebooks/`:
-   ```bash
-   cd sensor/notebooks
-   jupyter notebook
-   ```
+- Treinado só com três dias do CIC-IDS-2017 (laboratório, 2017): DDoS, PortScan e ataques web. Outros ataques
+  caem em "Desconhecido" ou passam como normais.
+- As métricas acima são do conjunto de teste do dataset; a taxa de alarmes falsos numa rede real ainda não foi
+  medida.
+- A API não tem login: quem alcança a porta 8080 consegue iniciar capturas e bloquear IPs. Feito para rodar numa
+  rede de confiança.
+- A captura ao vivo e o bloqueio só funcionam em Linux (`tcpdump` e `nftables`, com `sudo`).
+- O estado dos sensores fica em memória na API (é refeito sozinho pelo heartbeat se a API reiniciar).
 
-## Modelo de Detecção (2 etapas)
+## Como rodar
 
-```
-fluxo -> Modelo 1 (BENIGN x Ataque) -> Modelo 2 (tipo) -> DDoS / PortScan / WebAttack / SQLInjection / Desconhecido
-```
-
-Os dois modelos são XGBoost treinados com os três CSVs juntos (`src/data.py`):
-
-- **Limpeza:** infinitos e NaN removidos, duplicatas removidas **antes** da divisão treino/teste (evita vazamento).
-- **Features removidas por decisão de domínio:** colunas constantes, colunas idênticas a outras e atalhos
-  que identificam o ambiente da captura em vez do ataque (`Destination Port`, `Init_Win_bytes_*`).
-- **Flags TCP removidas:** o CICFlowMeter que gerou o dataset calcula as colunas de flags errado (ex.: os fluxos
-  de port scan só têm `PSH`, nunca o `RST` das portas fechadas), e um extrator correto não reproduz esses valores.
-- **Classes:** BruteForce e XSS viram `WebAttack`, porque as features de fluxo não distinguem os dois.
-- **Seleção de features** (notebook 02, só no treino): ranking por SHAP, remoção de features com correlação > 0,95
-  e curva de F1 x número de features.
-- **Modelo 1:** limiar de probabilidade escolhido para favorecer o recall de ataques (F2).
-- **Modelo 2:** treinado só com ataques, com pesos por classe para o desequilíbrio; confiança baixa vira `Desconhecido`.
-
-Uso:
-
-```python
-from src.data import clean_features
-from src.pipeline import IDSPipeline
-
-ids = IDSPipeline.load()
-resultado = ids.predict(clean_features(fluxos))   # attack_prob, is_attack, attack_type, type_confidence
-```
-
-Para retreinar, execute os notebooks 02, 03, 04 e 05 nessa ordem.
-
-## Usando o IDS
-
-Tudo passa pelo comando `./ids` (usa o Python do `.venv` automaticamente):
+Precisa de Linux, Python 3 (testado no 3.14), JDK 25, Node 24 e Docker (para o PostgreSQL).
 
 ```bash
-./ids ao-vivo                 # monitora a placa de rede e mostra alertas em tempo real (Ctrl+C para parar)
-./ids ao-vivo -i lo --duracao 60
-./ids teste-nmap              # escaneia o próprio PC (127.0.0.1) e mostra se o IDS detectou
-./ids teste-nmap --syn        # inclui o scan SYN (sudo nmap -sS)
-./ids teste-flood             # flood de conexões (SYN) no próprio PC, porta fechada 9
-./ids teste-flood --udp       # flood UDP no próprio PC
-./ids arquivo captura.pcap    # analisa um arquivo de captura
-./ids resumo                  # resultado da última execução
-./ids resumo --lista          # todas as execuções
+git clone git@github.com:Guilhermedantass/IDS-Network-Intrusion-Detection.git
+cd IDS-Network-Intrusion-Detection
+python -m venv .venv && .venv/bin/pip install -r sensor/requirements.txt
 ```
 
-Com `--api http://localhost:8080` (ou a variável `IDS_API_URL`), qualquer comando também envia os alertas para a
-API; veja [Envio de alertas para a API](#envio-de-alertas-para-a-api).
-
-`ao-vivo`, `teste-nmap` e `teste-flood` capturam com `tcpdump`, por isso pedem a senha do `sudo`. Os resultados ficam em
-`sensor/results/ids.db` (use `--db` para outro arquivo).
-
-```
-tcpdump / PCAP -> src/flows.py (features de fluxo) -> IDSPipeline -> SQLite -> alertas e resumo
-               └> src/volume.py (contagem por segundo) ┘
-```
-
-### Detecção por volume
-
-Os modelos olham um fluxo por vez, então não enxergam um flood: milhares de conexões curtas que, uma a uma,
-parecem normais. O `sensor/src/volume.py` conta os pacotes em janelas de 10 s e compara com limites simples
-(classe `Limits`):
-
-| Alerta | Regra (padrão) |
-|---|---|
-| DDoS | um destino recebe SYN de 20 ou mais origens (cada uma com 5/s ou mais), somando mais de 200/s |
-| SYN Flood | uma origem abre mais de 100 conexões/s (SYN sem ACK) com a mesma porta de um destino |
-| PortScan | uma origem tenta conexão em 100 ou mais portas do mesmo destino |
-| UDP Flood | uma origem manda mais de 2.000 pacotes UDP/s para um destino, com menos de 10% de resposta |
-
-Só pacotes que iniciam conexão contam para SYN Flood, DDoS e PortScan, porque as respostas de um servidor vão
-para muitas portas do cliente e pareceriam um scan. O mesmo alerta não se repete por 30 s.
-
-**Um tipo só por fluxo.** Quando um ataque de volume está ativo, os fluxos que fazem parte dele recebem o tipo do
-volume, inclusive os que já tinham sido gravados antes do alerta. Sem isso, o mesmo ataque teria dois nomes: o
-modelo chama cada conexão de um SYN flood de `PortScan` (é um SYN respondido com RST, igual a um scan) e um UDP
-flood de `BENIGN` (o CIC-IDS-2017 não tem ataques UDP). O tipo original do modelo fica na coluna `model_type` e a
-coluna `detected_by` diz quem detectou: `modelo`, `volume` ou `modelo+volume`.
-
-No modo ao vivo, um fluxo também é encerrado após 10 s sem pacotes (o CICFlowMeter original só encerra no
-FIN ou após 120 s); sem isso, um port scan só geraria alerta 2 minutos depois.
-
-O extrator de fluxos (`sensor/src/flows.py`) reproduz a semântica do CICFlowMeter em Java que gerou o CIC-IDS-2017,
-incluindo os bugs dele, conferidos contra os CSVs:
-
-- tempos em microssegundos, tamanho = payload, desvio padrão amostral, fim do fluxo no primeiro FIN ou após 120 s;
-- o padding do Ethernet (quadros com menos de 60 bytes) conta como payload;
-- o primeiro pacote entra duas vezes em `Packet Length Mean/Std/Variance` e `Average Packet Size`;
-- `act_data_pkt_fwd` ignora o primeiro pacote e o padding.
-
-O pacote `cicflowmeter` do PyPI não é usado porque calcula várias features em outra escala.
-
-O banco tem três tabelas: `runs` (uma por execução), `flows` (um fluxo por linha, com a previsão; as
-features ficam salvas em JSON só para os fluxos classificados como ataque) e `volume_alerts` (alertas da
-detecção por volume).
-
-### Envio de alertas para a API
-
-Com `--api URL`, o sensor manda os alertas em lotes para `POST URL/api/alerts`. Um alerta resume um ataque (tipo +
-origem + destino), e não cada fluxo, senão um flood viraria milhares de requisições. O envio roda em uma thread
-separada: se a API estiver fora do ar, os alertas ficam numa fila e são reenviados com espera crescente (até 30 s);
-a captura nunca para por causa disso. `--sensor NOME` (ou `IDS_SENSOR`) identifica a máquina, para vários sensores
-usarem a mesma API.
-
-```json
-{
-  "sensor": "pc-casa",
-  "alerts": [
-    {
-      "ts": "2026-10-22T13:33:19Z", "type": "SYN Flood", "detectedBy": "volume",
-      "srcIp": "127.0.0.1", "dstIp": "127.0.0.1", "dstPort": 9, "protocol": "TCP",
-      "flows": null, "packets": 1800, "rate": 180.0, "ports": 1, "sources": null, "probability": null
-    }
-  ]
-}
-```
-
-`flows` e `probability` vêm do modelo; `packets`, `rate` e `sources` vêm da detecção por volume; o que não se
-aplica vai como `null`. Respostas 2xx contam como entregues; 4xx descartam o lote (o alerta foi recusado e reenviar
-não resolve); 5xx ou falha de conexão fazem o lote voltar para a fila.
-
-### PCAPs do CIC-IDS-2017
-
-Os PCAPs originais (página do dataset, pasta `PCAPs/`, exige cadastro) têm vários GB por dia. Para recortar só a
-janela do ataque, inclusive durante o download (de dentro de `sensor/`):
+Em três terminais:
 
 ```bash
-curl -L <url-do-pcap> | python -m src.slice_pcap - datas/raw/recorte.pcap \
-    --inicio 2017-07-07T13:50-03:00 --fim 2017-07-07T14:40-03:00
+cd api && ./mvnw spring-boot:run             # API em localhost:8080 (sobe o PostgreSQL sozinha)
+cd web && npm install && npm start           # dashboard em http://localhost:4200
+./ids servico --api http://localhost:8080    # sensor (pede o sudo uma vez); controle pela página Sensores
 ```
 
-## Testes
+Para ver um incidente sem esperar um ataque de verdade: `./ids teste-flood --api http://localhost:8080` (flood
+limitado contra o próprio PC) ou `./ids teste-nmap --api http://localhost:8080`.
+
+Os modelos treinados já estão no repositório; os CSVs do dataset só são necessários para retreinar.
+
+### Testes
 
 ```bash
-cd sensor && ../.venv/bin/python -m pytest
+cd sensor && ../.venv/bin/python -m pytest   # sensor
+cd api && ./mvnw test                         # API (PostgreSQL descartável com Testcontainers)
+cd web && npm test                            # dashboard (Vitest)
 ```
 
-## Notebooks por Ataque (primeira etapa)
+## Estrutura
 
-Os notebooks `notebook_*.ipynb` seguem o mesmo fluxo:
+| Pasta | O que tem | Detalhes |
+|---|---|---|
+| `sensor/` | Python: captura, extrator de fluxos, modelos, detecção por volume, firewall, notebooks de treino | [sensor/README.md](sensor/README.md) |
+| `api/` | Java 25 + Spring Boot 4.1, PostgreSQL + Flyway, incidentes, WebSocket, controle dos sensores | [api/README.md](api/README.md) |
+| `web/` | Angular 22 (standalone, signals, sem zone.js): visão geral, incidentes, sensores | [web/README.md](web/README.md) |
 
-1. Carregamento do CSV e exploração (shape, tipos).
-2. Limpeza: remoção de espaços nos nomes das colunas, infinitos → NaN, remoção de NaN e duplicatas.
-3. Codificação do `Label` com `LabelEncoder`.
-4. Divisão treino/teste (80/20, `random_state=42`).
-5. Treino e avaliação de Decision Tree, Random Forest, XGBoost, SVM Linear e MLP.
-6. Matrizes de confusão, importância de features e comparação final de acurácia.
+## Tecnologias
 
-No `notebook_ddos_PCA.ipynb` os dados são padronizados (`StandardScaler`) e reduzidos com PCA (95% da variância) antes do treino; a importância é exibida por componente principal.
+**Sensor:** Python, XGBoost (com SHAP para escolher as features), scikit-learn, pandas, dpkt, tcpdump, nftables, SQLite, pytest ·
+**API:** Java 25, Spring Boot 4.1, Spring Data JPA, PostgreSQL 18, Flyway, WebSocket/STOMP, Testcontainers ·
+**Dashboard:** Angular 22, signals, STOMP.js, Vitest
 
-## Boas Práticas
+## Próximos passos
 
-- Não comite dados brutos no repositório (`sensor/datas/` está no `.gitignore`). De `sensor/results/modelos/` só os modelos finais (`.ubj`) e metadados (`.json`) são versionados.
-- Use `sensor/datas/processed/` apenas para dados preparados.
-- Documente cada experimento nos notebooks.
-- Código compartilhado entre notebooks (limpeza, avaliação) deve ir para `sensor/src/`.
+- Técnica do MITRE ATT&CK em cada incidente.
+- Explicação de cada incidente por uma LLM local (Spring AI + Ollama).
+- `docker compose up` com banco, API e dashboard.
+- CI no GitHub Actions.
 
-## Contato
+## Autor
 
-- Projeto mantido por Guilherme Martins.
+Guilherme Martins
